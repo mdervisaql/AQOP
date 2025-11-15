@@ -94,11 +94,15 @@ class AQOP_Core {
 		require_once AQOP_PLUGIN_DIR . 'includes/authentication/class-permissions.php';
 
 		/**
+		 * Load security classes for frontend protection.
+		 */
+		require_once AQOP_PLUGIN_DIR . 'includes/security/class-frontend-guard.php';
+
+		/**
 		 * Additional dependencies will be loaded here as we build the platform.
 		 * Examples:
 		 * - Notification Engine
 		 * - Integration Hub
-		 * - Security Layer
 		 */
 	}
 
