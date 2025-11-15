@@ -35,6 +35,10 @@ class AQOP_Deactivator {
 		// Clear temporary transients.
 		self::clear_transients();
 
+		// Remove custom roles (optional - uncomment if you want to remove roles on deactivation).
+		// require_once AQOP_PLUGIN_DIR . 'includes/authentication/class-roles-manager.php';
+		// AQOP_Roles_Manager::remove_roles();
+
 		// Flush rewrite rules.
 		flush_rewrite_rules();
 

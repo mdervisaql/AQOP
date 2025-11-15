@@ -48,6 +48,10 @@ class AQOP_Activator {
 			);
 		}
 
+		// Load roles manager and create custom roles.
+		require_once AQOP_PLUGIN_DIR . 'includes/authentication/class-roles-manager.php';
+		AQOP_Roles_Manager::create_roles();
+
 		// Set activation flag for redirect to welcome page.
 		set_transient( 'aqop_activation_redirect', true, 30 );
 

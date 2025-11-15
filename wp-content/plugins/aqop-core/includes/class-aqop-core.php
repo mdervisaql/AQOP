@@ -88,6 +88,12 @@ class AQOP_Core {
 		require_once AQOP_PLUGIN_DIR . 'includes/events/class-event-logger.php';
 
 		/**
+		 * Load authentication classes for roles and permissions.
+		 */
+		require_once AQOP_PLUGIN_DIR . 'includes/authentication/class-roles-manager.php';
+		require_once AQOP_PLUGIN_DIR . 'includes/authentication/class-permissions.php';
+
+		/**
 		 * Additional dependencies will be loaded here as we build the platform.
 		 * Examples:
 		 * - Notification Engine
