@@ -1,0 +1,524 @@
+/**
+ * Control Center Dashboard Styles
+ *
+ * Professional, modern dashboard design with RTL support.
+ *
+ * @package AQOP_Core
+ * @since   1.0.0
+ */
+
+:root {
+	--aqop-primary: #2c5282;
+	--aqop-success: #48bb78;
+	--aqop-warning: #ed8936;
+	--aqop-danger: #f56565;
+	--aqop-info: #4299e1;
+	--aqop-dark: #1a202c;
+	--aqop-light: #f7fafc;
+	--aqop-gray: #718096;
+	--aqop-border: #e2e8f0;
+}
+
+/* Dashboard Container */
+.aqop-control-center {
+	background: var(--aqop-light);
+	margin: 0 -20px 0 -22px;
+	padding: 0;
+}
+
+/* Header */
+.aqop-header {
+	background: #fff;
+	padding: 30px;
+	margin-bottom: 30px;
+	border-bottom: 1px solid var(--aqop-border);
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	flex-wrap: wrap;
+}
+
+.aqop-header-content {
+	flex: 1;
+}
+
+.aqop-title {
+	font-size: 28px;
+	font-weight: 600;
+	margin: 0 0 10px 0;
+	color: var(--aqop-dark);
+	display: flex;
+	align-items: center;
+	gap: 15px;
+}
+
+.aqop-title .dashicons {
+	color: var(--aqop-primary);
+	font-size: 32px;
+	width: 32px;
+	height: 32px;
+}
+
+.aqop-subtitle {
+	color: var(--aqop-gray);
+	font-size: 14px;
+	margin: 0;
+}
+
+.aqop-header-meta {
+	display: flex;
+	align-items: center;
+	gap: 20px;
+	flex-wrap: wrap;
+}
+
+.aqop-live-indicator {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 16px;
+	background: var(--aqop-success);
+	color: #fff;
+	border-radius: 20px;
+	font-size: 13px;
+	font-weight: 500;
+}
+
+.pulse {
+	width: 8px;
+	height: 8px;
+	background: #fff;
+	border-radius: 50%;
+	animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+	0%, 100% {
+		opacity: 1;
+		transform: scale(1);
+	}
+	50% {
+		opacity: 0.5;
+		transform: scale(1.2);
+	}
+}
+
+.aqop-last-updated {
+	color: var(--aqop-gray);
+	font-size: 13px;
+}
+
+/* Stats Grid */
+.aqop-stats-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+	gap: 20px;
+	padding: 0 30px 30px;
+}
+
+.aqop-stat-card {
+	background: #fff;
+	padding: 25px;
+	border-radius: 8px;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+	display: flex;
+	align-items: center;
+	gap: 20px;
+	transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.aqop-stat-card:hover {
+	transform: translateY(-3px);
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.stat-icon {
+	width: 60px;
+	height: 60px;
+	border-radius: 12px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+}
+
+.stat-icon .dashicons {
+	font-size: 28px;
+	width: 28px;
+	height: 28px;
+	color: #fff;
+}
+
+.stat-icon-primary {
+	background: var(--aqop-primary);
+}
+
+.stat-icon-success {
+	background: var(--aqop-success);
+}
+
+.stat-icon-warning {
+	background: var(--aqop-warning);
+}
+
+.stat-icon-danger {
+	background: var(--aqop-danger);
+}
+
+.stat-content {
+	flex: 1;
+}
+
+.stat-label {
+	font-size: 12px;
+	text-transform: uppercase;
+	color: var(--aqop-gray);
+	letter-spacing: 0.5px;
+	margin-bottom: 5px;
+}
+
+.stat-value {
+	font-size: 32px;
+	font-weight: 700;
+	color: var(--aqop-dark);
+	line-height: 1;
+	margin-bottom: 5px;
+}
+
+.stat-trend {
+	font-size: 12px;
+	color: var(--aqop-gray);
+	display: flex;
+	align-items: center;
+	gap: 5px;
+}
+
+.trend-up {
+	color: var(--aqop-success);
+}
+
+.trend-down {
+	color: var(--aqop-success);
+}
+
+/* Sections */
+.aqop-section {
+	background: #fff;
+	padding: 30px;
+	margin: 0 30px 30px;
+	border-radius: 8px;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.aqop-section-title {
+	font-size: 20px;
+	font-weight: 600;
+	color: var(--aqop-dark);
+	margin: 0 0 20px 0;
+	padding-bottom: 15px;
+	border-bottom: 2px solid var(--aqop-light);
+}
+
+/* Platform Status */
+.aqop-platform-status {
+	display: flex;
+	flex-direction: column;
+	gap: 20px;
+}
+
+.platform-status-card {
+	padding: 20px;
+	border-radius: 8px;
+	text-align: center;
+	font-size: 18px;
+	font-weight: 600;
+}
+
+.platform-status-card.status-active {
+	background: #f0fdf4;
+	color: var(--aqop-success);
+	border: 2px solid var(--aqop-success);
+}
+
+.platform-status-card.status-warning {
+	background: #fffbeb;
+	color: var(--aqop-warning);
+	border: 2px solid var(--aqop-warning);
+}
+
+.platform-status-card.status-error {
+	background: #fef2f2;
+	color: var(--aqop-danger);
+	border: 2px solid var(--aqop-danger);
+}
+
+.status-indicator {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 10px;
+}
+
+.status-indicator .dashicons {
+	font-size: 24px;
+	width: 24px;
+	height: 24px;
+}
+
+.platform-info-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+	gap: 15px;
+}
+
+.info-item {
+	padding: 15px;
+	background: var(--aqop-light);
+	border-radius: 6px;
+	font-size: 14px;
+}
+
+.info-item strong {
+	display: block;
+	margin-bottom: 5px;
+	color: var(--aqop-gray);
+	font-size: 12px;
+	text-transform: uppercase;
+}
+
+/* Modules Grid */
+.aqop-modules-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+	gap: 20px;
+}
+
+.aqop-module-card {
+	background: var(--aqop-light);
+	border-radius: 8px;
+	padding: 20px;
+	border-left: 4px solid var(--aqop-primary);
+}
+
+.aqop-module-card.module-status-inactive {
+	opacity: 0.6;
+	border-left-color: var(--aqop-gray);
+}
+
+.module-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 15px;
+}
+
+.module-name {
+	font-size: 16px;
+	font-weight: 600;
+	margin: 0;
+	color: var(--aqop-dark);
+}
+
+.module-badge {
+	padding: 4px 12px;
+	border-radius: 12px;
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+}
+
+.badge-ok {
+	background: var(--aqop-success);
+	color: #fff;
+}
+
+.badge-inactive {
+	background: var(--aqop-gray);
+	color: #fff;
+}
+
+.module-badge .dashicons {
+	font-size: 14px;
+	width: 14px;
+	height: 14px;
+}
+
+.module-body {
+	font-size: 13px;
+	color: var(--aqop-gray);
+}
+
+.module-description {
+	margin: 0 0 10px 0;
+}
+
+.module-version {
+	margin: 0;
+	font-size: 12px;
+}
+
+/* Integrations Grid */
+.aqop-integrations-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+	gap: 20px;
+}
+
+.aqop-integration-card {
+	background: var(--aqop-light);
+	border-radius: 8px;
+	padding: 20px;
+	display: flex;
+	gap: 15px;
+	align-items: flex-start;
+}
+
+.integration-icon {
+	width: 50px;
+	height: 50px;
+	background: var(--aqop-primary);
+	color: #fff;
+	border-radius: 8px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+}
+
+.integration-icon .dashicons {
+	font-size: 24px;
+	width: 24px;
+	height: 24px;
+}
+
+.integration-content {
+	flex: 1;
+}
+
+.integration-name {
+	font-size: 16px;
+	font-weight: 600;
+	margin: 0 0 8px 0;
+	color: var(--aqop-dark);
+}
+
+.integration-status {
+	margin: 0 0 5px 0;
+	font-size: 13px;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.status-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+}
+
+.status-dot.status-ok {
+	background: var(--aqop-success);
+}
+
+.status-dot.status-error {
+	background: var(--aqop-danger);
+}
+
+.integration-meta {
+	margin: 0;
+	font-size: 11px;
+	color: var(--aqop-gray);
+}
+
+/* Charts */
+.aqop-charts-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+	gap: 20px;
+}
+
+.chart-large {
+	grid-column: 1 / -1;
+}
+
+.aqop-chart-card {
+	background: var(--aqop-light);
+	border-radius: 8px;
+	padding: 20px;
+}
+
+.chart-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 20px;
+	padding-bottom: 15px;
+	border-bottom: 2px solid var(--aqop-border);
+}
+
+.chart-title {
+	font-size: 16px;
+	font-weight: 600;
+	margin: 0;
+	color: var(--aqop-dark);
+}
+
+.chart-actions {
+	display: flex;
+	gap: 10px;
+}
+
+.chart-body {
+	position: relative;
+	min-height: 300px;
+}
+
+/* Quick Actions */
+.aqop-quick-actions {
+	display: flex;
+	gap: 15px;
+	flex-wrap: wrap;
+}
+
+.aqop-quick-actions .button {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.aqop-quick-actions .dashicons {
+	font-size: 18px;
+	width: 18px;
+	height: 18px;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+	.aqop-header {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 20px;
+	}
+
+	.aqop-charts-grid {
+		grid-template-columns: 1fr;
+	}
+}
+
+@media (max-width: 768px) {
+	.aqop-stats-grid {
+		grid-template-columns: 1fr;
+	}
+
+	.aqop-modules-grid {
+		grid-template-columns: 1fr;
+	}
+
+	.aqop-integrations-grid {
+		grid-template-columns: 1fr;
+	}
+}
+

@@ -104,6 +104,13 @@ class AQOP_Core {
 		require_once AQOP_PLUGIN_DIR . 'includes/integrations/class-integrations-hub.php';
 
 		/**
+		 * Load admin classes.
+		 */
+		if ( is_admin() ) {
+			require_once AQOP_PLUGIN_DIR . 'admin/control-center/class-control-center.php';
+		}
+
+		/**
 		 * Additional dependencies will be loaded here as we build the platform.
 		 * Examples:
 		 * - Notification Engine
