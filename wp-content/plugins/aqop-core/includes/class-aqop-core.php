@@ -99,10 +99,14 @@ class AQOP_Core {
 		require_once AQOP_PLUGIN_DIR . 'includes/security/class-frontend-guard.php';
 
 		/**
+		 * Load integrations hub for external services.
+		 */
+		require_once AQOP_PLUGIN_DIR . 'includes/integrations/class-integrations-hub.php';
+
+		/**
 		 * Additional dependencies will be loaded here as we build the platform.
 		 * Examples:
 		 * - Notification Engine
-		 * - Integration Hub
 		 */
 	}
 
