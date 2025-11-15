@@ -1,0 +1,146 @@
+# WordPress Plugin - Operation Platform Core
+# .gitignore
+
+# Operating System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# IDE and Editor Files
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+*.code-workspace
+.phpstorm.meta.php
+_ide_helper.php
+.project
+.settings/
+*.swp
+*.swo
+*~
+
+# Composer
+/vendor/
+composer.phar
+composer.lock
+
+# Node.js / NPM
+node_modules/
+npm-debug.log
+yarn-error.log
+yarn.lock
+package-lock.json
+
+# Build and Distribution
+/dist/
+/build/
+*.zip
+*.tar.gz
+
+# WordPress
+wp-config.php
+wp-content/uploads/
+wp-content/blogs.dir/
+wp-content/upgrade/
+wp-content/backup-db/
+wp-content/advanced-cache.php
+wp-content/wp-cache-config.php
+wp-content/cache/
+wp-content/debug.log
+
+# Plugin Specific
+/assets/css/*.min.css
+/assets/js/*.min.js
+/assets/css/*.map
+/assets/js/*.map
+
+# Temporary Files
+*.tmp
+*.temp
+*.log
+*.cache
+
+# Backup Files
+*.bak
+*.backup
+*~
+
+# Environment Files
+.env
+.env.local
+.env.*.local
+
+# Test Files (keep test structure, ignore results)
+/tests/coverage/
+/tests/_output/
+phpunit.xml
+.phpunit.result.cache
+
+# Database
+*.sql
+*.sqlite
+
+# Archives
+*.zip
+*.tar
+*.gz
+*.rar
+
+# macOS
+.AppleDouble
+.LSOverride
+
+# Windows
+$RECYCLE.BIN/
+
+# Linux
+.directory
+
+# Logs
+logs/
+*.log
+
+# Runtime Data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Dependency Directories
+jspm_packages/
+bower_components/
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Optional REPL history
+.node_repl_history
+
+# Output of 'npm pack'
+*.tgz
+
+# Yarn Integrity file
+.yarn-integrity
+
+# PHPUnit
+/phpunit.xml
+/.phpunit.result.cache
+
+# PHP CS Fixer
+.php_cs.cache
+.php-cs-fixer.cache
+
+# Misc
+.htaccess.bak
+error_log
+debug.log
+
