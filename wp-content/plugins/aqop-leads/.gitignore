@@ -1,0 +1,33 @@
+# Leads Module - .gitignore
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.sublime-*
+
+# Dependencies
+/vendor/
+/node_modules/
+
+# Build
+/dist/
+/build/
+*.zip
+
+# Logs
+*.log
+debug.log
+
+# Temporary
+*.tmp
+*.bak
+*.swp
+
+# Environment
+.env
+.env.local
+
