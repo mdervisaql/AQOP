@@ -83,9 +83,13 @@ class AQOP_Core {
 		require_once AQOP_PLUGIN_DIR . 'includes/class-installer.php';
 
 		/**
+		 * Load the Event Logger class for event tracking.
+		 */
+		require_once AQOP_PLUGIN_DIR . 'includes/events/class-event-logger.php';
+
+		/**
 		 * Additional dependencies will be loaded here as we build the platform.
 		 * Examples:
-		 * - Event Logger
 		 * - Notification Engine
 		 * - Integration Hub
 		 * - Security Layer
