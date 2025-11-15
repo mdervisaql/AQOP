@@ -201,6 +201,3 @@ class AQOP_Leads_Admin {
 	}
 }
 
-// Initialize admin.
-new AQOP_Leads_Admin();
-

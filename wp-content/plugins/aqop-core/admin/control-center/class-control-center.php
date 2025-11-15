@@ -340,6 +340,3 @@ class AQOP_Control_Center {
 	}
 }
 
-// Initialize Control Center.
-AQOP_Control_Center::init();
-

@@ -118,12 +118,14 @@ class AQOP_Leads_Core {
 		 */
 		require_once AQOP_LEADS_PLUGIN_DIR . 'includes/class-leads-manager.php';
 
-		/**
-		 * Load admin classes if in admin.
-		 */
-		if ( is_admin() ) {
-			require_once AQOP_LEADS_PLUGIN_DIR . 'admin/class-leads-admin.php';
-		}
+	/**
+	 * Load admin classes if in admin.
+	 */
+	if ( is_admin() ) {
+		require_once AQOP_LEADS_PLUGIN_DIR . 'admin/class-leads-admin.php';
+		// Initialize Leads Admin to register menus and hooks.
+		new AQOP_Leads_Admin();
+	}
 	}
 
 	/**

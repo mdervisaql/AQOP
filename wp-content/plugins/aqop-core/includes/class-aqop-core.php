@@ -103,12 +103,14 @@ class AQOP_Core {
 		 */
 		require_once AQOP_PLUGIN_DIR . 'includes/integrations/class-integrations-hub.php';
 
-		/**
-		 * Load admin classes.
-		 */
-		if ( is_admin() ) {
-			require_once AQOP_PLUGIN_DIR . 'admin/control-center/class-control-center.php';
-		}
+	/**
+	 * Load admin classes.
+	 */
+	if ( is_admin() ) {
+		require_once AQOP_PLUGIN_DIR . 'admin/control-center/class-control-center.php';
+		// Initialize Control Center to register admin menu.
+		AQOP_Control_Center::init();
+	}
 
 		/**
 		 * Additional dependencies will be loaded here as we build the platform.
