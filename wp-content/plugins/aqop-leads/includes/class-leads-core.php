@@ -126,6 +126,13 @@ class AQOP_Leads_Core {
 		// Initialize Leads Admin to register menus and hooks.
 		new AQOP_Leads_Admin();
 	}
+		
+		// === PUBLIC FORM (Phase 3.2) ===
+		/**
+		 * Load public form class.
+		 */
+		require_once AQOP_LEADS_PLUGIN_DIR . 'public/class-public-form.php';
+		// === END PUBLIC FORM ===
 	}
 
 	/**
@@ -136,6 +143,10 @@ class AQOP_Leads_Core {
 	 */
 	private function init_hooks() {
 		add_action( 'init', array( $this, 'load_textdomain' ) );
+		
+		// === REST API (Phase 3.1) ===
+		add_action( 'rest_api_init', array( $this, 'register_api_routes' ) );
+		// === END REST API ===
 
 		/**
 		 * Fires after Leads Module core has been initialized.
@@ -160,6 +171,22 @@ class AQOP_Leads_Core {
 			dirname( AQOP_LEADS_PLUGIN_BASENAME ) . '/languages/'
 		);
 	}
+
+	// === REST API (Phase 3.1) ===
+	
+	/**
+	 * Register REST API routes.
+	 *
+	 * @since  1.0.6
+	 * @access public
+	 */
+	public function register_api_routes() {
+		require_once AQOP_LEADS_PLUGIN_DIR . 'api/class-leads-api.php';
+		$api = new AQOP_Leads_API();
+		$api->register_routes();
+	}
+	
+	// === END REST API ===
 
 	/**
 	 * Register module with core platform.

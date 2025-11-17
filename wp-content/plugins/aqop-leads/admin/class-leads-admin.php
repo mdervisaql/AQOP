@@ -30,6 +30,7 @@ class AQOP_Leads_Admin {
 		add_action( 'admin_menu', array( $this, 'register_admin_pages' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
 		add_action( 'admin_init', array( $this, 'handle_form_submission' ) );
+		add_action( 'admin_init', array( $this, 'handle_import_export' ) );
 		
 		// AJAX handlers
 		add_action( 'wp_ajax_aqop_add_note', array( $this, 'ajax_add_note' ) );
@@ -81,6 +82,30 @@ class AQOP_Leads_Admin {
 			'aqop-leads-form',
 			array( $this, 'render_lead_form_page' )
 		);
+		
+		// === REST API (Phase 3.1) ===
+		// API Documentation page
+		add_submenu_page(
+			'aqop-control-center',
+			__( 'API Documentation', 'aqop-leads' ),
+			__( 'API Docs', 'aqop-leads' ),
+			'manage_options',
+			'aqop-leads-api',
+			array( $this, 'render_api_docs_page' )
+		);
+		// === END REST API ===
+		
+		// === IMPORT/EXPORT (Phase 3.3) ===
+		// Import/Export page
+		add_submenu_page(
+			'aqop-control-center',
+			__( 'Import/Export Leads', 'aqop-leads' ),
+			__( 'Import/Export', 'aqop-leads' ),
+			'manage_options',
+			'aqop-import-export',
+			array( $this, 'render_import_export_page' )
+		);
+		// === END IMPORT/EXPORT ===
 	}
 
 	/**
@@ -157,6 +182,444 @@ class AQOP_Leads_Admin {
 		// Include the form template
 		include AQOP_LEADS_PLUGIN_DIR . 'admin/views/lead-form.php';
 	}
+
+	// === REST API (Phase 3.1) ===
+	
+	/**
+	 * Render API documentation page.
+	 *
+	 * @since 1.0.6
+	 */
+	public function render_api_docs_page() {
+		// Include the API docs template
+		include AQOP_LEADS_PLUGIN_DIR . 'admin/views/api-docs.php';
+	}
+	
+	// === END REST API ===
+
+	// === IMPORT/EXPORT (Phase 3.3) ===
+	
+	/**
+	 * Render import/export page.
+	 *
+	 * @since 1.0.8
+	 */
+	public function render_import_export_page() {
+		// Show results if redirected from import
+		if ( isset( $_GET['imported'] ) ) {
+			$imported = absint( $_GET['imported'] );
+			$updated = isset( $_GET['updated'] ) ? absint( $_GET['updated'] ) : 0;
+			$skipped = isset( $_GET['skipped'] ) ? absint( $_GET['skipped'] ) : 0;
+			$errors = isset( $_GET['errors'] ) ? absint( $_GET['errors'] ) : 0;
+
+			echo '<div class="notice notice-success is-dismissible"><p>';
+			printf(
+				/* translators: 1: imported count, 2: updated count, 3: skipped count */
+				esc_html__( 'Import completed: %1$d created, %2$d updated, %3$d skipped.', 'aqop-leads' ),
+				$imported,
+				$updated,
+				$skipped
+			);
+			echo '</p></div>';
+
+			if ( $errors > 0 ) {
+				echo '<div class="notice notice-warning is-dismissible"><p>';
+				printf(
+					/* translators: %d: error count */
+					esc_html__( '%d rows had errors and were skipped.', 'aqop-leads' ),
+					$errors
+				);
+				echo '</p></div>';
+			}
+		}
+
+		include AQOP_LEADS_PLUGIN_DIR . 'admin/views/import-export.php';
+	}
+
+	/**
+	 * Handle import/export form submissions.
+	 *
+	 * @since 1.0.8
+	 */
+	public function handle_import_export() {
+		// Only process on import-export page
+		if ( ! isset( $_GET['page'] ) || 'aqop-import-export' !== $_GET['page'] ) {
+			return;
+		}
+
+		// Handle template download
+		if ( isset( $_GET['action'] ) && 'download_template' === $_GET['action'] ) {
+			$this->download_csv_template();
+			return;
+		}
+
+		// Handle POST actions
+		if ( ! isset( $_POST['action'] ) ) {
+			return;
+		}
+
+		$action = sanitize_text_field( wp_unslash( $_POST['action'] ) );
+
+		if ( 'export_leads' === $action ) {
+			$this->handle_export();
+		} elseif ( 'import_leads' === $action ) {
+			$this->handle_import();
+		}
+	}
+
+	/**
+	 * Download CSV template.
+	 *
+	 * @since 1.0.8
+	 */
+	private function download_csv_template() {
+		// Check permission
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You do not have permission.', 'aqop-leads' ) );
+		}
+
+		$filename = 'leads_import_template.csv';
+
+		header( 'Content-Type: text/csv; charset=utf-8' );
+		header( 'Content-Disposition: attachment; filename=' . $filename );
+		header( 'Pragma: no-cache' );
+		header( 'Expires: 0' );
+
+		$output = fopen( 'php://output', 'w' );
+
+		// BOM for UTF-8
+		fprintf( $output, chr( 0xEF ) . chr( 0xBB ) . chr( 0xBF ) );
+
+		// Headers with example row
+		fputcsv(
+			$output,
+			array( 'name', 'email', 'phone', 'whatsapp', 'country_id', 'source_id', 'campaign_id', 'status', 'priority' )
+		);
+		
+		// Example row
+		fputcsv(
+			$output,
+			array( 'John Doe', 'john@example.com', '+966501234567', '+966501234567', '1', '1', '', 'pending', 'medium' )
+		);
+
+		fclose( $output );
+		exit;
+	}
+
+	/**
+	 * Handle CSV export.
+	 *
+	 * @since 1.0.8
+	 */
+	private function handle_export() {
+		// Verify nonce
+		if ( ! isset( $_POST['aqop_export_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['aqop_export_nonce'] ) ), 'aqop_export_leads' ) ) {
+			wp_die( esc_html__( 'Security check failed.', 'aqop-leads' ) );
+		}
+
+		// Check permission
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You do not have permission.', 'aqop-leads' ) );
+		}
+
+		// Build query args
+		$query_args = array(
+			'limit' => 999999, // Get all matching leads
+		);
+		
+		$export_type = isset( $_POST['export_type'] ) ? sanitize_text_field( wp_unslash( $_POST['export_type'] ) ) : 'all';
+		
+		if ( 'filtered' === $export_type ) {
+			if ( ! empty( $_POST['export_status'] ) ) {
+				global $wpdb;
+				$status_code = sanitize_text_field( wp_unslash( $_POST['export_status'] ) );
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+				$status_id = $wpdb->get_var(
+					$wpdb->prepare(
+						"SELECT id FROM {$wpdb->prefix}aq_leads_status WHERE status_code = %s",
+						$status_code
+					)
+				);
+				if ( $status_id ) {
+					$query_args['status'] = $status_id;
+				}
+			}
+			
+			if ( ! empty( $_POST['export_country'] ) ) {
+				$query_args['country'] = absint( $_POST['export_country'] );
+			}
+			
+			if ( ! empty( $_POST['export_priority'] ) ) {
+				$query_args['priority'] = sanitize_text_field( wp_unslash( $_POST['export_priority'] ) );
+			}
+			
+			if ( ! empty( $_POST['export_date_from'] ) ) {
+				$query_args['date_from'] = sanitize_text_field( wp_unslash( $_POST['export_date_from'] ) );
+			}
+			
+			if ( ! empty( $_POST['export_date_to'] ) ) {
+				$query_args['date_to'] = sanitize_text_field( wp_unslash( $_POST['export_date_to'] ) );
+			}
+		}
+
+		// Get leads
+		$results = AQOP_Leads_Manager::query_leads( $query_args );
+		$leads = $results['results'];
+
+		// Generate CSV filename
+		$filename = 'leads_export_' . gmdate( 'Y-m-d_H-i-s' ) . '.csv';
+
+		header( 'Content-Type: text/csv; charset=utf-8' );
+		header( 'Content-Disposition: attachment; filename=' . $filename );
+		header( 'Pragma: no-cache' );
+		header( 'Expires: 0' );
+
+		$output = fopen( 'php://output', 'w' );
+
+		// BOM for UTF-8
+		fprintf( $output, chr( 0xEF ) . chr( 0xBB ) . chr( 0xBF ) );
+
+		// Headers
+		fputcsv(
+			$output,
+			array(
+				'ID',
+				'Name',
+				'Email',
+				'Phone',
+				'WhatsApp',
+				'Country',
+				'Source',
+				'Status',
+				'Priority',
+				'Assigned To',
+				'Created At',
+				'Updated At',
+				'Airtable ID',
+			)
+		);
+
+		// Data
+		foreach ( $leads as $lead ) {
+			fputcsv(
+				$output,
+				array(
+					$lead->id,
+					$lead->name,
+					$lead->email,
+					$lead->phone,
+					$lead->whatsapp,
+					$lead->country_name_en,
+					$lead->source_name,
+					$lead->status_name_en,
+					ucfirst( $lead->priority ),
+					$lead->assigned_user_name,
+					$lead->created_at,
+					$lead->updated_at,
+					$lead->airtable_record_id,
+				)
+			);
+		}
+
+		fclose( $output );
+		
+		// Log export event
+		if ( class_exists( 'AQOP_Event_Logger' ) ) {
+			AQOP_Event_Logger::log(
+				'leads',
+				'leads_exported',
+				'system',
+				0,
+				array(
+					'count'       => count( $leads ),
+					'export_type' => $export_type,
+					'user_id'     => get_current_user_id(),
+				)
+			);
+		}
+		
+		exit;
+	}
+
+	/**
+	 * Handle CSV import.
+	 *
+	 * @since 1.0.8
+	 */
+	private function handle_import() {
+		// Verify nonce
+		if ( ! isset( $_POST['aqop_import_nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['aqop_import_nonce'] ) ), 'aqop_import_leads' ) ) {
+			wp_die( esc_html__( 'Security check failed.', 'aqop-leads' ) );
+		}
+
+		// Check permission
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You do not have permission.', 'aqop-leads' ) );
+		}
+
+		// Check file
+		if ( ! isset( $_FILES['import_file'] ) || UPLOAD_ERR_OK !== $_FILES['import_file']['error'] ) {
+			wp_die( esc_html__( 'Please select a valid CSV file.', 'aqop-leads' ) );
+		}
+
+		$file = $_FILES['import_file'];
+		
+		// Validate file type
+		$file_ext = strtolower( pathinfo( $file['name'], PATHINFO_EXTENSION ) );
+		if ( 'csv' !== $file_ext ) {
+			wp_die( esc_html__( 'Invalid file type. Please upload a CSV file.', 'aqop-leads' ) );
+		}
+
+		// Validate file size (5MB max)
+		if ( $file['size'] > 5 * 1024 * 1024 ) {
+			wp_die( esc_html__( 'File is too large. Maximum size is 5MB.', 'aqop-leads' ) );
+		}
+
+		$default_status = isset( $_POST['import_default_status'] ) ? sanitize_text_field( wp_unslash( $_POST['import_default_status'] ) ) : 'pending';
+		$duplicate_handling = isset( $_POST['duplicate_handling'] ) ? sanitize_text_field( wp_unslash( $_POST['duplicate_handling'] ) ) : 'skip';
+
+		// Parse CSV
+		$handle = fopen( $file['tmp_name'], 'r' );
+		
+		// Skip BOM if present
+		$bom = fread( $handle, 3 );
+		if ( "\xEF\xBB\xBF" !== $bom ) {
+			rewind( $handle );
+		}
+
+		$headers = fgetcsv( $handle );
+		
+		if ( ! $headers ) {
+			fclose( $handle );
+			wp_die( esc_html__( 'Invalid CSV file format.', 'aqop-leads' ) );
+		}
+
+		$imported = 0;
+		$updated = 0;
+		$skipped = 0;
+		$errors = 0;
+
+		global $wpdb;
+		
+		// Get default status ID
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$default_status_id = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT id FROM {$wpdb->prefix}aq_leads_status WHERE status_code = %s",
+				$default_status
+			)
+		);
+
+		while ( ( $row = fgetcsv( $handle ) ) !== false ) {
+			if ( count( $row ) < 3 ) {
+				$errors++;
+				continue; // Skip invalid rows
+			}
+
+			$data = array_combine( $headers, $row );
+
+			// Required fields validation
+			if ( empty( $data['name'] ) || empty( $data['email'] ) || empty( $data['phone'] ) ) {
+				$errors++;
+				continue;
+			}
+
+			// Check for duplicate by email
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+			$existing = $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT id FROM {$wpdb->prefix}aq_leads WHERE email = %s",
+					sanitize_email( $data['email'] )
+				)
+			);
+
+			if ( $existing && 'skip' === $duplicate_handling ) {
+				$skipped++;
+				continue;
+			}
+
+			// Prepare lead data
+			$lead_data = array(
+				'name'       => sanitize_text_field( $data['name'] ),
+				'email'      => sanitize_email( $data['email'] ),
+				'phone'      => sanitize_text_field( $data['phone'] ),
+				'whatsapp'   => isset( $data['whatsapp'] ) && ! empty( $data['whatsapp'] ) ? sanitize_text_field( $data['whatsapp'] ) : sanitize_text_field( $data['phone'] ),
+				'country_id' => isset( $data['country_id'] ) && ! empty( $data['country_id'] ) ? absint( $data['country_id'] ) : null,
+				'source_id'  => isset( $data['source_id'] ) && ! empty( $data['source_id'] ) ? absint( $data['source_id'] ) : null,
+				'priority'   => isset( $data['priority'] ) && ! empty( $data['priority'] ) ? sanitize_text_field( $data['priority'] ) : 'medium',
+			);
+
+			// Handle status
+			if ( isset( $data['status'] ) && ! empty( $data['status'] ) ) {
+				$status_code = sanitize_text_field( $data['status'] );
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+				$status_id = $wpdb->get_var(
+					$wpdb->prepare(
+						"SELECT id FROM {$wpdb->prefix}aq_leads_status WHERE status_code = %s",
+						$status_code
+					)
+				);
+				$lead_data['status_id'] = $status_id ? $status_id : $default_status_id;
+			} else {
+				$lead_data['status_id'] = $default_status_id;
+			}
+
+			if ( $existing && 'update' === $duplicate_handling ) {
+				// Update existing lead
+				$result = AQOP_Leads_Manager::update_lead( $existing, $lead_data );
+				if ( $result ) {
+					$updated++;
+				} else {
+					$errors++;
+				}
+			} else {
+				// Create new lead
+				$result = AQOP_Leads_Manager::create_lead( $lead_data );
+				if ( $result ) {
+					$imported++;
+				} else {
+					$errors++;
+				}
+			}
+		}
+
+		fclose( $handle );
+
+		// Log import event
+		if ( class_exists( 'AQOP_Event_Logger' ) ) {
+			AQOP_Event_Logger::log(
+				'leads',
+				'leads_imported',
+				'system',
+				0,
+				array(
+					'imported'           => $imported,
+					'updated'            => $updated,
+					'skipped'            => $skipped,
+					'errors'             => $errors,
+					'duplicate_handling' => $duplicate_handling,
+					'user_id'            => get_current_user_id(),
+				)
+			);
+		}
+
+		// Redirect with results
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page'     => 'aqop-import-export',
+					'imported' => $imported,
+					'updated'  => $updated,
+					'skipped'  => $skipped,
+					'errors'   => $errors,
+				),
+				admin_url( 'admin.php' )
+			)
+		);
+		exit;
+	}
+	
+	// === END IMPORT/EXPORT ===
 
 	/**
 	 * Handle form submission for add/edit/delete.
@@ -1496,6 +1959,7 @@ class AQOP_Leads_Admin {
 					'confirmBulkDelete' => __( 'Are you sure you want to delete the selected leads?', 'aqop-leads' ),
 					'apply'             => __( 'Apply', 'aqop-leads' ),
 					'processing'        => __( 'Processing...', 'aqop-leads' ),
+					'exporting'         => __( 'Exporting...', 'aqop-leads' ),
 				),
 			)
 		);

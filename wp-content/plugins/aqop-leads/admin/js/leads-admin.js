@@ -173,7 +173,7 @@
 			
 			$button.prop('disabled', true).html(
 				'<span class="dashicons dashicons-download spin"></span> ' +
-				(aqopLeads.strings.processing || 'Processing...')
+				(aqopLeads.strings.exporting || 'Exporting...')
 			);
 			
 			$.ajax({
