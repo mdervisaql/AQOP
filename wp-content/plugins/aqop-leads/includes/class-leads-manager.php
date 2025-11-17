@@ -723,9 +723,12 @@ class AQOP_Leads_Manager {
 			'status'      => null,
 			'country'     => null,
 			'source'      => null,
+			'campaign'    => null,
 			'assigned_to' => null,
 			'priority'    => null,
 			'search'      => null,
+			'date_from'   => null,
+			'date_to'     => null,
 			'limit'       => 50,
 			'offset'      => 0,
 			'orderby'     => 'created_at',
@@ -752,6 +755,11 @@ class AQOP_Leads_Manager {
 			$where_values[] = absint( $args['source'] );
 		}
 
+		if ( $args['campaign'] ) {
+			$where_clauses[] = 'l.campaign_id = %d';
+			$where_values[] = absint( $args['campaign'] );
+		}
+
 		if ( $args['assigned_to'] ) {
 			$where_clauses[] = 'l.assigned_to = %d';
 			$where_values[] = absint( $args['assigned_to'] );
@@ -760,6 +768,16 @@ class AQOP_Leads_Manager {
 		if ( $args['priority'] ) {
 			$where_clauses[] = 'l.priority = %s';
 			$where_values[] = $args['priority'];
+		}
+
+		if ( $args['date_from'] ) {
+			$where_clauses[] = 'DATE(l.created_at) >= %s';
+			$where_values[] = $args['date_from'];
+		}
+
+		if ( $args['date_to'] ) {
+			$where_clauses[] = 'DATE(l.created_at) <= %s';
+			$where_values[] = $args['date_to'];
 		}
 
 		if ( $args['search'] ) {

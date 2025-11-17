@@ -191,8 +191,8 @@ class AQOP_Core {
 	 * Prevent unserializing of the instance.
 	 *
 	 * @since  1.0.0
-	 * @access private
+	 * @access public
 	 */
-	private function __wakeup() {}
+	public function __wakeup() {}
 }
 

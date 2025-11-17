@@ -46,7 +46,7 @@ class AQOP_Control_Center {
 		add_menu_page(
 			__( 'مركز العمليات', 'aqop-core' ),           // Page title.
 			__( 'مركز العمليات', 'aqop-core' ),           // Menu title.
-			'view_control_center',                          // Capability.
+			'manage_options',                               // Capability.
 			'aqop-control-center',                          // Menu slug.
 			array( __CLASS__, 'render_overview' ),         // Callback.
 			'dashicons-dashboard',                          // Icon.
@@ -64,7 +64,7 @@ class AQOP_Control_Center {
 	 */
 	public static function render_overview() {
 		// Check permissions.
-		if ( ! current_user_can( 'view_control_center' ) ) {
+		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_die(
 				esc_html__( 'عذراً، ليس لديك صلاحية للوصول لهذه الصفحة', 'aqop-core' ),
 				esc_html__( 'Access Denied', 'aqop-core' ),
