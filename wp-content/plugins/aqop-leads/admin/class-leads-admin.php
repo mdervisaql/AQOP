@@ -31,6 +31,7 @@ class AQOP_Leads_Admin {
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
 		add_action( 'admin_init', array( $this, 'handle_form_submission' ) );
 		add_action( 'admin_init', array( $this, 'handle_import_export' ) );
+		add_action( 'admin_init', array( $this, 'handle_settings_save' ) );
 		
 		// AJAX handlers
 		add_action( 'wp_ajax_aqop_add_note', array( $this, 'ajax_add_note' ) );
@@ -53,11 +54,23 @@ class AQOP_Leads_Admin {
 			return;
 		}
 
+		// === ANALYTICS DASHBOARD (Phase 4.2) ===
+		// Dashboard page (replaces default Control Center for Leads)
+		add_submenu_page(
+			'aqop-control-center',
+			__( 'Leads Dashboard', 'aqop-leads' ),
+			__( 'Dashboard', 'aqop-leads' ),
+			'manage_options',
+			'aqop-leads-dashboard',
+			array( $this, 'render_dashboard_page' )
+		);
+		// === END ANALYTICS DASHBOARD ===
+		
 		// Main leads list page
 		add_submenu_page(
 			'aqop-control-center',
 			__( 'Leads Management', 'aqop-leads' ),
-			__( 'Leads', 'aqop-leads' ),
+			__( 'All Leads', 'aqop-leads' ),
 			'manage_options',
 			'aqop-leads',
 			array( $this, 'render_leads_page' )
@@ -106,6 +119,18 @@ class AQOP_Leads_Admin {
 			array( $this, 'render_import_export_page' )
 		);
 		// === END IMPORT/EXPORT ===
+		
+		// === SETTINGS PAGE (Phase 4.1) ===
+		// Settings page
+		add_submenu_page(
+			'aqop-control-center',
+			__( 'Leads Settings', 'aqop-leads' ),
+			__( 'Settings', 'aqop-leads' ),
+			'manage_options',
+			'aqop-settings',
+			array( $this, 'render_settings_page' )
+		);
+		// === END SETTINGS PAGE ===
 	}
 
 	/**
@@ -620,6 +645,240 @@ class AQOP_Leads_Admin {
 	}
 	
 	// === END IMPORT/EXPORT ===
+
+	// === ANALYTICS DASHBOARD (Phase 4.2) ===
+	
+	/**
+	 * Render analytics dashboard page.
+	 *
+	 * @since 1.0.10
+	 */
+	public function render_dashboard_page() {
+		// Include the dashboard template
+		include AQOP_LEADS_PLUGIN_DIR . 'admin/views/dashboard.php';
+	}
+	
+	// === END ANALYTICS DASHBOARD ===
+
+	// === SETTINGS PAGE (Phase 4.1) ===
+	
+	/**
+	 * Render settings page.
+	 *
+	 * @since 1.0.9
+	 */
+	public function render_settings_page() {
+		// Show success messages
+		if ( isset( $_GET['message'] ) ) {
+			$message = sanitize_key( $_GET['message'] );
+			$messages = array(
+				'source_added'        => __( 'Lead source added successfully.', 'aqop-leads' ),
+				'source_updated'      => __( 'Lead source updated successfully.', 'aqop-leads' ),
+				'integrations_saved'  => __( 'Integration settings saved successfully.', 'aqop-leads' ),
+				'notifications_saved' => __( 'Notification settings saved successfully.', 'aqop-leads' ),
+			);
+			
+			if ( isset( $messages[ $message ] ) ) {
+				printf(
+					'<div class="notice notice-success is-dismissible"><p>%s</p></div>',
+					esc_html( $messages[ $message ] )
+				);
+			}
+		}
+
+		include AQOP_LEADS_PLUGIN_DIR . 'admin/views/settings.php';
+	}
+
+	/**
+	 * Handle settings form submissions.
+	 *
+	 * @since 1.0.9
+	 */
+	public function handle_settings_save() {
+		// Only process on settings page
+		if ( ! isset( $_POST['aqop_settings_action'] ) ) {
+			return;
+		}
+
+		check_admin_referer( 'aqop_settings_save' );
+
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You do not have permission.', 'aqop-leads' ) );
+		}
+
+		$action = sanitize_text_field( wp_unslash( $_POST['aqop_settings_action'] ) );
+
+		switch ( $action ) {
+			case 'add_source':
+				$this->add_lead_source();
+				break;
+			case 'update_integrations':
+				$this->update_integration_settings();
+				break;
+			case 'update_notifications':
+				$this->update_notification_settings();
+				break;
+		}
+	}
+
+	/**
+	 * Add new lead source.
+	 *
+	 * @since 1.0.9
+	 */
+	private function add_lead_source() {
+		global $wpdb;
+
+		$source_name = isset( $_POST['source_name'] ) ? sanitize_text_field( wp_unslash( $_POST['source_name'] ) ) : '';
+		$source_type = isset( $_POST['source_type'] ) ? sanitize_text_field( wp_unslash( $_POST['source_type'] ) ) : 'organic';
+		$cost_per_lead = isset( $_POST['cost_per_lead'] ) && ! empty( $_POST['cost_per_lead'] ) ? floatval( $_POST['cost_per_lead'] ) : null;
+
+		if ( empty( $source_name ) ) {
+			wp_die( esc_html__( 'Source name is required.', 'aqop-leads' ), '', array( 'back_link' => true ) );
+		}
+
+		// Generate source code from name
+		$source_code = sanitize_title( $source_name );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+		$inserted = $wpdb->insert(
+			$wpdb->prefix . 'aq_leads_sources',
+			array(
+				'source_code'  => $source_code,
+				'source_name'  => $source_name,
+				'source_type'  => $source_type,
+				'cost_per_lead' => $cost_per_lead,
+				'is_active'    => 1,
+			),
+			array( '%s', '%s', '%s', '%f', '%d' )
+		);
+
+		if ( $inserted ) {
+			// Log event
+			if ( class_exists( 'AQOP_Event_Logger' ) ) {
+				AQOP_Event_Logger::log(
+					'leads',
+					'source_added',
+					'system',
+					0,
+					array(
+						'source_name' => $source_name,
+						'source_type' => $source_type,
+						'user_id'     => get_current_user_id(),
+					)
+				);
+			}
+
+			wp_safe_redirect(
+				add_query_arg(
+					array(
+						'page'    => 'aqop-settings',
+						'message' => 'source_added',
+					),
+					admin_url( 'admin.php' )
+				)
+			);
+		} else {
+			wp_die( esc_html__( 'Failed to add source.', 'aqop-leads' ), '', array( 'back_link' => true ) );
+		}
+		exit;
+	}
+
+	/**
+	 * Update integration settings.
+	 *
+	 * @since 1.0.9
+	 */
+	private function update_integration_settings() {
+		// Airtable
+		if ( isset( $_POST['airtable_token'] ) ) {
+			update_option( 'aqop_airtable_token', sanitize_text_field( wp_unslash( $_POST['airtable_token'] ) ) );
+		}
+		if ( isset( $_POST['airtable_base_id'] ) ) {
+			update_option( 'aqop_airtable_base_id', sanitize_text_field( wp_unslash( $_POST['airtable_base_id'] ) ) );
+		}
+		if ( isset( $_POST['airtable_table_name'] ) ) {
+			update_option( 'aqop_airtable_table_name', sanitize_text_field( wp_unslash( $_POST['airtable_table_name'] ) ) );
+		}
+		update_option( 'aqop_airtable_auto_sync', isset( $_POST['airtable_auto_sync'] ) ? '1' : '0' );
+
+		// Telegram
+		if ( isset( $_POST['telegram_bot_token'] ) ) {
+			update_option( 'aqop_telegram_bot_token', sanitize_text_field( wp_unslash( $_POST['telegram_bot_token'] ) ) );
+		}
+		if ( isset( $_POST['telegram_chat_id'] ) ) {
+			update_option( 'aqop_telegram_chat_id', sanitize_text_field( wp_unslash( $_POST['telegram_chat_id'] ) ) );
+		}
+		update_option( 'aqop_telegram_notify_new', isset( $_POST['telegram_notify_new'] ) ? '1' : '0' );
+
+		// Log event
+		if ( class_exists( 'AQOP_Event_Logger' ) ) {
+			AQOP_Event_Logger::log(
+				'leads',
+				'integrations_updated',
+				'system',
+				0,
+				array(
+					'user_id' => get_current_user_id(),
+				)
+			);
+		}
+
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page'    => 'aqop-settings',
+					'message' => 'integrations_saved',
+				),
+				admin_url( 'admin.php' )
+			) . '#integrations'
+		);
+		exit;
+	}
+
+	/**
+	 * Update notification settings.
+	 *
+	 * @since 1.0.9
+	 */
+	private function update_notification_settings() {
+		if ( isset( $_POST['notification_email'] ) ) {
+			$email = sanitize_email( wp_unslash( $_POST['notification_email'] ) );
+			if ( is_email( $email ) ) {
+				update_option( 'aqop_notification_email', $email );
+			}
+		}
+		
+		update_option( 'aqop_notify_new_lead', isset( $_POST['notify_new_lead'] ) ? '1' : '0' );
+		update_option( 'aqop_notify_status_change', isset( $_POST['notify_status_change'] ) ? '1' : '0' );
+		update_option( 'aqop_notify_assignment', isset( $_POST['notify_assignment'] ) ? '1' : '0' );
+
+		// Log event
+		if ( class_exists( 'AQOP_Event_Logger' ) ) {
+			AQOP_Event_Logger::log(
+				'leads',
+				'notification_settings_updated',
+				'system',
+				0,
+				array(
+					'user_id' => get_current_user_id(),
+				)
+			);
+		}
+
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page'    => 'aqop-settings',
+					'message' => 'notifications_saved',
+				),
+				admin_url( 'admin.php' )
+			) . '#notifications'
+		);
+		exit;
+	}
+	
+	// === END SETTINGS PAGE ===
 
 	/**
 	 * Handle form submission for add/edit/delete.
@@ -1912,6 +2171,19 @@ class AQOP_Leads_Admin {
 			array(),
 			AQOP_LEADS_VERSION
 		);
+		
+		// === ANALYTICS DASHBOARD (Phase 4.2) ===
+		// Chart.js for dashboard
+		if ( isset( $_GET['page'] ) && 'aqop-leads-dashboard' === $_GET['page'] ) {
+			wp_enqueue_script(
+				'chartjs',
+				'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js',
+				array(),
+				'4.4.0',
+				true
+			);
+		}
+		// === END ANALYTICS DASHBOARD ===
 		
 		// === FILTERS (Phase 2.1) ===
 		// Load filters CSS on main leads list page

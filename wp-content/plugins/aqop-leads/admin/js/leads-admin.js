@@ -14,6 +14,7 @@
 			this.handlePerPageChange();
 			this.handleSearchClear();
 			this.handleBulkActions();
+			this.handleSettingsTabs();
 		},
 		
 		// === PAGINATION (Phase 2.2) ===
@@ -214,9 +215,47 @@
 					$button.prop('disabled', false).html(originalText);
 				}
 			});
-		}
+		},
 		
 		// === END BULK ACTIONS ===
+
+		// === SETTINGS PAGE (Phase 4.1) ===
+		
+		/**
+		 * Handle settings page tab switching
+		 */
+		handleSettingsTabs: function() {
+			if (!$('.aqop-settings-tabs').length) {
+				return;
+			}
+			
+			// Tab switching
+			$('.nav-tab').on('click', function(e) {
+				e.preventDefault();
+				var target = $(this).attr('href');
+				
+				// Update nav tabs
+				$('.nav-tab').removeClass('nav-tab-active');
+				$(this).addClass('nav-tab-active');
+				
+				// Update tab content
+				$('.aqop-settings-tab').removeClass('active');
+				$(target).addClass('active');
+				
+				// Update URL hash without jumping
+				if (history.pushState) {
+					history.pushState(null, null, target);
+				}
+			});
+			
+			// Handle direct hash navigation
+			if (window.location.hash) {
+				var hash = window.location.hash;
+				$('.nav-tab[href="' + hash + '"]').trigger('click');
+			}
+		}
+		
+		// === END SETTINGS PAGE ===
 
 	};
 
