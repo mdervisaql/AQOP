@@ -780,13 +780,16 @@ class AQOP_Leads_Manager {
 			$where_values[] = $args['date_to'];
 		}
 
+		// === SEARCH (Phase 2.2) ===
 		if ( $args['search'] ) {
-			$where_clauses[] = '(l.name LIKE %s OR l.email LIKE %s OR l.phone LIKE %s)';
+			$where_clauses[] = '(l.name LIKE %s OR l.email LIKE %s OR l.phone LIKE %s OR l.whatsapp LIKE %s)';
 			$search_term = '%' . $wpdb->esc_like( $args['search'] ) . '%';
 			$where_values[] = $search_term;
 			$where_values[] = $search_term;
 			$where_values[] = $search_term;
+			$where_values[] = $search_term;
 		}
+		// === END SEARCH ===
 
 		$where_sql = ! empty( $where_clauses ) ? 'WHERE ' . implode( ' AND ', $where_clauses ) : '';
 

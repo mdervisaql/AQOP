@@ -36,6 +36,7 @@ class AQOP_Leads_Admin {
 		add_action( 'wp_ajax_aqop_sync_lead_airtable', array( $this, 'ajax_sync_airtable' ) );
 		add_action( 'wp_ajax_aqop_edit_note', array( $this, 'ajax_edit_note' ) );
 		add_action( 'wp_ajax_aqop_delete_note', array( $this, 'ajax_delete_note' ) );
+		add_action( 'wp_ajax_aqop_bulk_action', array( $this, 'ajax_bulk_action' ) );
 	}
 
 	/**
@@ -582,6 +583,227 @@ class AQOP_Leads_Admin {
 	
 	// === END NOTES ENHANCEMENT ===
 
+	// === BULK ACTIONS (Phase 2.3) ===
+	
+	/**
+	 * Handle bulk actions via AJAX.
+	 *
+	 * @since 1.0.5
+	 */
+	public function ajax_bulk_action() {
+		// Verify nonce
+		check_ajax_referer( 'aqop_leads_nonce', 'nonce' );
+		
+		// Check permission
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error(
+				array(
+					'message' => __( 'You do not have permission to perform bulk actions.', 'aqop-leads' ),
+				),
+				403
+			);
+		}
+		
+		// Get parameters
+		$action = isset( $_POST['bulk_action'] ) ? sanitize_text_field( wp_unslash( $_POST['bulk_action'] ) ) : '';
+		$lead_ids = isset( $_POST['lead_ids'] ) ? array_map( 'absint', (array) $_POST['lead_ids'] ) : array();
+		
+		if ( empty( $action ) || empty( $lead_ids ) ) {
+			wp_send_json_error(
+				array(
+					'message' => __( 'Invalid action or no leads selected.', 'aqop-leads' ),
+				),
+				400
+			);
+		}
+		
+		$results = array(
+			'success' => 0,
+			'failed'  => 0,
+		);
+		
+		global $wpdb;
+		
+		switch ( $action ) {
+			case 'delete':
+				foreach ( $lead_ids as $lead_id ) {
+					$deleted = AQOP_Leads_Manager::delete_lead( $lead_id );
+					if ( $deleted ) {
+						$results['success']++;
+					} else {
+						$results['failed']++;
+					}
+				}
+				
+				$message = sprintf(
+					/* translators: 1: number of leads deleted, 2: number failed */
+					__( 'Deleted %1$d leads. %2$d failed.', 'aqop-leads' ),
+					$results['success'],
+					$results['failed']
+				);
+				break;
+				
+			case 'export':
+				// Generate CSV
+				$csv_data = $this->generate_csv_export( $lead_ids );
+				
+				wp_send_json_success(
+					array(
+						'message'  => sprintf( __( 'Exporting %d leads...', 'aqop-leads' ), count( $lead_ids ) ),
+						'csv_data' => $csv_data,
+						'filename' => 'leads_export_' . gmdate( 'Y-m-d_H-i-s' ) . '.csv',
+					)
+				);
+				return;
+				
+			default:
+				// Handle status change (status_pending, status_contacted, etc.)
+				if ( strpos( $action, 'status_' ) === 0 ) {
+					$new_status_code = str_replace( 'status_', '', $action );
+					
+					// Get status ID
+					// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+					$status_id = $wpdb->get_var(
+						$wpdb->prepare(
+							"SELECT id FROM {$wpdb->prefix}aq_leads_status WHERE status_code = %s",
+							$new_status_code
+						)
+					);
+					
+					if ( ! $status_id ) {
+						wp_send_json_error(
+							array(
+								'message' => __( 'Invalid status.', 'aqop-leads' ),
+							),
+							400
+						);
+					}
+					
+					foreach ( $lead_ids as $lead_id ) {
+						$updated = AQOP_Leads_Manager::change_status( $lead_id, $status_id );
+						
+						if ( $updated ) {
+							$results['success']++;
+						} else {
+							$results['failed']++;
+						}
+					}
+					
+					$message = sprintf(
+						/* translators: 1: number of leads updated, 2: new status, 3: number failed */
+						__( 'Changed status of %1$d leads to %2$s. %3$d failed.', 'aqop-leads' ),
+						$results['success'],
+						ucfirst( $new_status_code ),
+						$results['failed']
+					);
+				} else {
+					wp_send_json_error(
+						array(
+							'message' => __( 'Unknown bulk action.', 'aqop-leads' ),
+						),
+						400
+					);
+				}
+				break;
+		}
+		
+		wp_send_json_success(
+			array(
+				'message' => $message,
+				'results' => $results,
+			)
+		);
+	}
+
+	/**
+	 * Generate CSV export data.
+	 *
+	 * @since 1.0.5
+	 * @param array $lead_ids Lead IDs to export.
+	 * @return string CSV data.
+	 */
+	private function generate_csv_export( $lead_ids ) {
+		if ( empty( $lead_ids ) ) {
+			return '';
+		}
+		
+		global $wpdb;
+		
+		// Build placeholders for IN clause
+		$placeholders = implode( ', ', array_fill( 0, count( $lead_ids ), '%d' ) );
+		
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$leads = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT l.*, 
+				 c.country_name_en,
+				 c.country_code,
+				 s.source_name,
+				 st.status_name_en,
+				 u.display_name as assigned_user_name
+				 FROM {$wpdb->prefix}aq_leads l
+				 LEFT JOIN {$wpdb->prefix}aq_dim_countries c ON l.country_id = c.id
+				 LEFT JOIN {$wpdb->prefix}aq_leads_sources s ON l.source_id = s.id
+				 LEFT JOIN {$wpdb->prefix}aq_leads_status st ON l.status_id = st.id
+				 LEFT JOIN {$wpdb->users} u ON l.assigned_to = u.ID
+				 WHERE l.id IN ({$placeholders})
+				 ORDER BY l.id ASC",
+				$lead_ids
+			)
+		);
+		
+		// Build CSV
+		ob_start();
+		$output = fopen( 'php://output', 'w' );
+		
+		// Headers
+		fputcsv(
+			$output,
+			array(
+				'ID',
+				'Name',
+				'Email',
+				'Phone',
+				'WhatsApp',
+				'Country',
+				'Status',
+				'Source',
+				'Priority',
+				'Assigned To',
+				'Created At',
+				'Last Updated',
+				'Airtable ID',
+			)
+		);
+		
+		// Data
+		foreach ( $leads as $lead ) {
+			fputcsv(
+				$output,
+				array(
+					$lead->id,
+					$lead->name,
+					$lead->email,
+					$lead->phone,
+					$lead->whatsapp,
+					$lead->country_name_en,
+					$lead->status_name_en,
+					$lead->source_name,
+					ucfirst( $lead->priority ),
+					$lead->assigned_user_name,
+					$lead->created_at,
+					$lead->updated_at,
+					$lead->airtable_record_id,
+				)
+			);
+		}
+		
+		fclose( $output );
+		return ob_get_clean();
+	}
+	
+	// === END BULK ACTIONS ===
+
 	/**
 	 * Render quick stats.
 	 *
@@ -630,13 +852,36 @@ class AQOP_Leads_Admin {
 		global $wpdb;
 		
 		// === FILTERS (Phase 2.1) ===
+		// === SEARCH & PAGINATION (Phase 2.2) ===
+		
+		// Pagination
+		$current_page = isset( $_GET['paged'] ) ? absint( $_GET['paged'] ) : 1;
+		$current_page = max( 1, $current_page );
+		$per_page = isset( $_GET['per_page'] ) ? absint( $_GET['per_page'] ) : 50;
+		$per_page = max( 1, min( $per_page, 200 ) ); // Limit between 1-200
+		
+		// Search
+		$search = isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '';
+		
+		// === SORTING (Phase 2.3) ===
+		// Sorting parameters
+		$orderby = isset( $_GET['orderby'] ) ? sanitize_text_field( wp_unslash( $_GET['orderby'] ) ) : 'created_at';
+		$order = isset( $_GET['order'] ) ? sanitize_text_field( wp_unslash( $_GET['order'] ) ) : 'desc';
+		$order = strtoupper( $order ) === 'ASC' ? 'ASC' : 'DESC';
+		// === END SORTING ===
 		
 		// Build query arguments from filters
 		$query_args = array(
-			'limit'   => 50,
-			'orderby' => 'created_at',
-			'order'   => 'DESC',
+			'limit'   => $per_page,
+			'offset'  => ( $current_page - 1 ) * $per_page,
+			'orderby' => $orderby,
+			'order'   => $order,
 		);
+		
+		// Search parameter
+		if ( ! empty( $search ) ) {
+			$query_args['search'] = $search;
+		}
 		
 		// Status filter
 		if ( ! empty( $_GET['filter_status'] ) ) {
@@ -677,14 +922,54 @@ class AQOP_Leads_Admin {
 			$query_args['date_to'] = sanitize_text_field( wp_unslash( $_GET['filter_date_to'] ) );
 		}
 		
-		// Query leads with filters
+		// Query leads with all filters
 		$results = AQOP_Leads_Manager::query_leads( $query_args );
 		
 		// === FILTERS UI ===
 		?>
+		<!-- === BULK ACTIONS (Phase 2.3) === -->
+		<div class="bulk-actions-bar">
+			<div class="alignleft actions bulkactions">
+				<select name="action" id="bulk-action-selector-top">
+					<option value="-1"><?php esc_html_e( 'Bulk Actions', 'aqop-leads' ); ?></option>
+					<option value="delete"><?php esc_html_e( 'Delete', 'aqop-leads' ); ?></option>
+					<option value="status_pending"><?php esc_html_e( 'Change Status → Pending', 'aqop-leads' ); ?></option>
+					<option value="status_contacted"><?php esc_html_e( 'Change Status → Contacted', 'aqop-leads' ); ?></option>
+					<option value="status_qualified"><?php esc_html_e( 'Change Status → Qualified', 'aqop-leads' ); ?></option>
+					<option value="status_converted"><?php esc_html_e( 'Change Status → Converted', 'aqop-leads' ); ?></option>
+					<option value="status_lost"><?php esc_html_e( 'Change Status → Lost', 'aqop-leads' ); ?></option>
+					<option value="export"><?php esc_html_e( 'Export to CSV', 'aqop-leads' ); ?></option>
+				</select>
+				<button type="button" id="doaction" class="button action" disabled>
+					<?php esc_html_e( 'Apply', 'aqop-leads' ); ?>
+				</button>
+			</div>
+		</div>
+		<!-- === END BULK ACTIONS === -->
+		
 		<!-- Filters Bar -->
 		<form method="get" class="aqop-leads-filters">
 			<input type="hidden" name="page" value="aqop-leads">
+			
+			<!-- === SEARCH BOX (Phase 2.2) === -->
+			<div class="search-box">
+				<label for="leads-search-input" class="screen-reader-text">
+					<?php esc_html_e( 'Search Leads', 'aqop-leads' ); ?>
+				</label>
+				<input 
+					type="search" 
+					id="leads-search-input" 
+					name="s" 
+					value="<?php echo isset( $_GET['s'] ) ? esc_attr( sanitize_text_field( wp_unslash( $_GET['s'] ) ) ) : ''; ?>" 
+					placeholder="<?php esc_attr_e( 'Search by name, email, or phone...', 'aqop-leads' ); ?>"
+					class="leads-search-input"
+				>
+				<button type="submit" class="button">
+					<span class="dashicons dashicons-search"></span>
+					<?php esc_html_e( 'Search', 'aqop-leads' ); ?>
+				</button>
+			</div>
+			<!-- === END SEARCH BOX === -->
 			
 			<div class="tablenav top">
 				<div class="alignleft actions">
@@ -812,6 +1097,11 @@ class AQOP_Leads_Admin {
 				<?php
 				$active_filters = array();
 				
+				// Search term
+				if ( ! empty( $search ) ) {
+					$active_filters[] = sprintf( __( 'Search: %s', 'aqop-leads' ), '<strong>' . esc_html( $search ) . '</strong>' );
+				}
+				
 				if ( ! empty( $_GET['filter_status'] ) ) {
 					$status_name = '';
 					$status_code = sanitize_text_field( wp_unslash( $_GET['filter_status'] ) );
@@ -876,35 +1166,122 @@ class AQOP_Leads_Admin {
 		
 		<?php
 		
-		// Display results count
-		if ( ! empty( $active_filters ) ) {
+		// === RESULTS DISPLAY (Phase 2.2) ===
+		
+		// Display results summary
+		if ( ! empty( $search ) || ! empty( $active_filters ) ) {
+			$showing_count = count( $results['results'] );
+			$total_count = absint( $results['total'] );
+			
 			printf(
-				'<p class="search-results-info" style="margin-bottom: 10px; color: #646970;">%s</p>',
+				'<p class="search-results-info" style="margin-bottom: 10px; color: #646970; font-size: 13px;">%s</p>',
 				sprintf(
-					/* translators: %d: number of leads found */
-					esc_html( _n( 'Found %d lead matching filters', 'Found %d leads matching filters', $results['total'], 'aqop-leads' ) ),
-					'<strong>' . absint( $results['total'] ) . '</strong>'
+					/* translators: 1: showing count, 2: total count */
+					esc_html__( 'Showing %1$s of %2$s leads', 'aqop-leads' ),
+					'<strong>' . number_format_i18n( $showing_count ) . '</strong>',
+					'<strong>' . number_format_i18n( $total_count ) . '</strong>'
 				)
 			);
 		}
 		
 		if ( empty( $results['results'] ) ) {
-			echo '<div class="notice notice-warning inline"><p>' . esc_html__( 'No leads found matching the selected filters.', 'aqop-leads' ) . '</p></div>';
+			$message = ! empty( $search ) 
+				? __( 'No leads found matching your search.', 'aqop-leads' )
+				: __( 'No leads found matching the selected filters.', 'aqop-leads' );
+			echo '<div class="notice notice-warning inline"><p>' . esc_html( $message ) . '</p></div>';
 			return;
 		}
 
 		?>
+		<!-- === SORTABLE TABLE (Phase 2.3) === -->
 		<table class="wp-list-table widefat fixed striped">
 			<thead>
 				<tr>
-					<th><?php esc_html_e( 'ID', 'aqop-leads' ); ?></th>
-					<th><?php esc_html_e( 'Name', 'aqop-leads' ); ?></th>
-					<th><?php esc_html_e( 'Email', 'aqop-leads' ); ?></th>
-					<th><?php esc_html_e( 'Phone', 'aqop-leads' ); ?></th>
-					<th><?php esc_html_e( 'Status', 'aqop-leads' ); ?></th>
-					<th><?php esc_html_e( 'Country', 'aqop-leads' ); ?></th>
-					<th><?php esc_html_e( 'Created', 'aqop-leads' ); ?></th>
-					<th><?php esc_html_e( 'Actions', 'aqop-leads' ); ?></th>
+					<td class="manage-column column-cb check-column">
+						<input type="checkbox" id="cb-select-all-1">
+					</td>
+					<?php
+					// Helper function to generate sortable column
+					$sortable_column = function( $column, $label ) use ( $orderby, $order, $search ) {
+						$is_current = ( $orderby === $column );
+						$new_order = ( $is_current && 'ASC' === $order ) ? 'desc' : 'asc';
+						$arrow = '';
+						
+						if ( $is_current ) {
+							$arrow = 'ASC' === $order ? '<span class="dashicons dashicons-arrow-up-alt2"></span>' : '<span class="dashicons dashicons-arrow-down-alt2"></span>';
+						}
+						
+						// Build URL preserving all filters
+						$url_args = array(
+							'page'    => 'aqop-leads',
+							'orderby' => $column,
+							'order'   => $new_order,
+						);
+						
+						// Preserve all GET parameters
+						if ( ! empty( $search ) ) {
+							$url_args['s'] = $search;
+						}
+						if ( ! empty( $_GET['filter_status'] ) ) {
+							$url_args['filter_status'] = sanitize_text_field( wp_unslash( $_GET['filter_status'] ) );
+						}
+						if ( ! empty( $_GET['filter_country'] ) ) {
+							$url_args['filter_country'] = absint( $_GET['filter_country'] );
+						}
+						if ( ! empty( $_GET['filter_source'] ) ) {
+							$url_args['filter_source'] = absint( $_GET['filter_source'] );
+						}
+						if ( ! empty( $_GET['filter_priority'] ) ) {
+							$url_args['filter_priority'] = sanitize_text_field( wp_unslash( $_GET['filter_priority'] ) );
+						}
+						if ( ! empty( $_GET['filter_date_from'] ) ) {
+							$url_args['filter_date_from'] = sanitize_text_field( wp_unslash( $_GET['filter_date_from'] ) );
+						}
+						if ( ! empty( $_GET['filter_date_to'] ) ) {
+							$url_args['filter_date_to'] = sanitize_text_field( wp_unslash( $_GET['filter_date_to'] ) );
+						}
+						if ( ! empty( $_GET['paged'] ) ) {
+							$url_args['paged'] = absint( $_GET['paged'] );
+						}
+						if ( ! empty( $_GET['per_page'] ) && 50 !== absint( $_GET['per_page'] ) ) {
+							$url_args['per_page'] = absint( $_GET['per_page'] );
+						}
+						
+						$url = add_query_arg( $url_args, admin_url( 'admin.php' ) );
+						$class = $is_current ? 'sorted' : 'sortable';
+						$class .= $is_current && 'ASC' === $order ? ' asc' : '';
+						$class .= $is_current && 'DESC' === $order ? ' desc' : '';
+						
+						printf(
+							'<th scope="col" class="manage-column column-%s %s">
+								<a href="%s">
+									<span>%s</span>
+									<span class="sorting-indicator">%s</span>
+								</a>
+							</th>',
+							esc_attr( $column ),
+							esc_attr( $class ),
+							esc_url( $url ),
+							esc_html( $label ),
+							$arrow
+						);
+					};
+					
+					// Render sortable columns
+					$sortable_column( 'id', __( 'ID', 'aqop-leads' ) );
+					$sortable_column( 'name', __( 'Name', 'aqop-leads' ) );
+					$sortable_column( 'email', __( 'Email', 'aqop-leads' ) );
+					?>
+					<th scope="col" class="manage-column column-phone"><?php esc_html_e( 'Phone', 'aqop-leads' ); ?></th>
+					<?php
+					$sortable_column( 'status_id', __( 'Status', 'aqop-leads' ) );
+					?>
+					<th scope="col" class="manage-column column-country"><?php esc_html_e( 'Country', 'aqop-leads' ); ?></th>
+					<?php
+					$sortable_column( 'priority', __( 'Priority', 'aqop-leads' ) );
+					$sortable_column( 'created_at', __( 'Created', 'aqop-leads' ) );
+					?>
+					<th scope="col" class="manage-column column-actions"><?php esc_html_e( 'Actions', 'aqop-leads' ); ?></th>
 				</tr>
 			</thead>
 			<tbody>
@@ -919,6 +1296,9 @@ class AQOP_Leads_Admin {
 					);
 					?>
 					<tr>
+						<th scope="row" class="check-column">
+							<input type="checkbox" name="lead_ids[]" value="<?php echo esc_attr( $lead->id ); ?>" class="lead-checkbox">
+						</th>
 						<td><?php echo esc_html( $lead->id ); ?></td>
 						<td>
 							<strong>
@@ -930,12 +1310,26 @@ class AQOP_Leads_Admin {
 						<td><?php echo esc_html( $lead->email ); ?></td>
 						<td><?php echo esc_html( $lead->phone ); ?></td>
 						<td>
-							<span class="status-badge" style="background-color: <?php echo esc_attr( $lead->status_color ); ?>;">
+							<span class="status-badge" style="background-color: <?php echo esc_attr( $lead->status_color ); ?>; color: white; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;">
 								<?php echo esc_html( $lead->status_name_en ); ?>
 							</span>
 						</td>
 						<td><?php echo esc_html( $lead->country_name_en ); ?></td>
-						<td><?php echo esc_html( $lead->created_at ); ?></td>
+						<td>
+							<?php
+							$priority_colors = array(
+								'urgent' => '#f56565',
+								'high'   => '#ed8936',
+								'medium' => '#4299e1',
+								'low'    => '#718096',
+							);
+							$p_color = isset( $priority_colors[ $lead->priority ] ) ? $priority_colors[ $lead->priority ] : '#718096';
+							?>
+							<span style="color: <?php echo esc_attr( $p_color ); ?>; font-weight: 600;">
+								<?php echo esc_html( ucfirst( $lead->priority ) ); ?>
+							</span>
+						</td>
+						<td><?php echo esc_html( date_i18n( get_option( 'date_format' ), strtotime( $lead->created_at ) ) ); ?></td>
 						<td>
 							<a href="<?php echo esc_url( $view_url ); ?>" class="button button-small">
 								<?php esc_html_e( 'View', 'aqop-leads' ); ?>
@@ -945,6 +1339,94 @@ class AQOP_Leads_Admin {
 				<?php endforeach; ?>
 			</tbody>
 		</table>
+		
+		<!-- === PAGINATION (Phase 2.2) === -->
+		<?php
+		$total_pages = absint( $results['pages'] );
+		
+		if ( $total_pages > 1 ) :
+			?>
+			<div class="tablenav bottom">
+				<div class="tablenav-pages">
+					<span class="displaying-num">
+						<?php
+						printf(
+							/* translators: %s: number of leads */
+							esc_html( _n( '%s lead', '%s leads', $results['total'], 'aqop-leads' ) ),
+							number_format_i18n( $results['total'] )
+						);
+						?>
+					</span>
+					
+					<span class="pagination-links">
+						<?php
+						// Build base URL with all current filters
+						$base_url_args = array( 'page' => 'aqop-leads' );
+						
+						if ( ! empty( $search ) ) {
+							$base_url_args['s'] = $search;
+						}
+						if ( ! empty( $_GET['filter_status'] ) ) {
+							$base_url_args['filter_status'] = sanitize_text_field( wp_unslash( $_GET['filter_status'] ) );
+						}
+						if ( ! empty( $_GET['filter_country'] ) ) {
+							$base_url_args['filter_country'] = absint( $_GET['filter_country'] );
+						}
+						if ( ! empty( $_GET['filter_source'] ) ) {
+							$base_url_args['filter_source'] = absint( $_GET['filter_source'] );
+						}
+						if ( ! empty( $_GET['filter_priority'] ) ) {
+							$base_url_args['filter_priority'] = sanitize_text_field( wp_unslash( $_GET['filter_priority'] ) );
+						}
+						if ( ! empty( $_GET['filter_date_from'] ) ) {
+							$base_url_args['filter_date_from'] = sanitize_text_field( wp_unslash( $_GET['filter_date_from'] ) );
+						}
+						if ( ! empty( $_GET['filter_date_to'] ) ) {
+							$base_url_args['filter_date_to'] = sanitize_text_field( wp_unslash( $_GET['filter_date_to'] ) );
+						}
+						if ( $per_page !== 50 ) {
+							$base_url_args['per_page'] = $per_page;
+						}
+						
+						$base_url = add_query_arg( $base_url_args, admin_url( 'admin.php' ) );
+						
+						echo paginate_links(
+							array(
+								'base'      => add_query_arg( 'paged', '%#%', $base_url ),
+								'format'    => '',
+								'current'   => $current_page,
+								'total'     => $total_pages,
+								'prev_text' => __( '&laquo; Previous', 'aqop-leads' ),
+								'next_text' => __( 'Next &raquo;', 'aqop-leads' ),
+								'type'      => 'list',
+								'end_size'  => 1,
+								'mid_size'  => 2,
+							)
+						);
+						?>
+					</span>
+					
+					<!-- Per Page Selector -->
+					<span class="per-page-selector">
+						<label for="per-page-select"><?php esc_html_e( 'Per page:', 'aqop-leads' ); ?></label>
+						<select id="per-page-select" data-current-page="<?php echo esc_attr( $current_page ); ?>">
+							<?php
+							$per_page_options = array( 20, 50, 100, 200 );
+							foreach ( $per_page_options as $option ) {
+								printf(
+									'<option value="%d" %s>%d</option>',
+									esc_attr( $option ),
+									selected( $per_page, $option, false ),
+									esc_html( $option )
+								);
+							}
+							?>
+						</select>
+					</span>
+				</div>
+			</div>
+		<?php endif; ?>
+		<!-- === END PAGINATION === -->
 		<?php
 	}
 
@@ -1009,6 +1491,11 @@ class AQOP_Leads_Admin {
 					'noteEmpty'         => __( 'Note text cannot be empty.', 'aqop-leads' ),
 					'confirmDeleteNote' => __( 'Are you sure you want to delete this note?', 'aqop-leads' ),
 					'noNotes'           => __( 'No notes yet. Add the first note above.', 'aqop-leads' ),
+					'selectBulkAction'  => __( 'Please select an action.', 'aqop-leads' ),
+					'selectLeads'       => __( 'Please select at least one lead.', 'aqop-leads' ),
+					'confirmBulkDelete' => __( 'Are you sure you want to delete the selected leads?', 'aqop-leads' ),
+					'apply'             => __( 'Apply', 'aqop-leads' ),
+					'processing'        => __( 'Processing...', 'aqop-leads' ),
 				),
 			)
 		);

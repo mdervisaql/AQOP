@@ -85,5 +85,342 @@
 	}
 }
 
+/* === SEARCH & PAGINATION (Phase 2.2) === */
+
+/* Search Box */
+.search-box {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 12px;
+}
+
+.leads-search-input {
+	min-width: 300px;
+	height: 32px;
+	padding: 0 10px;
+	font-size: 13px;
+	border: 1px solid #8c8f94;
+	border-radius: 4px;
+}
+
+.leads-search-input:focus {
+	border-color: #2271b1;
+	outline: 1px solid #2271b1;
+}
+
+.search-box .button {
+	height: 32px;
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	line-height: 30px;
+}
+
+.search-box .dashicons {
+	width: 18px;
+	height: 18px;
+	font-size: 18px;
+}
+
+/* Results Info */
+.search-results-info {
+	margin: 10px 0;
+	padding: 8px 12px;
+	background: #f0f6fc;
+	border-left: 4px solid #2271b1;
+	font-size: 13px;
+}
+
+/* Pagination */
+.tablenav.bottom {
+	margin-top: 15px;
+	padding: 12px;
+	background: #f6f7f7;
+	border: 1px solid #c3c4c7;
+	border-radius: 4px;
+}
+
+.tablenav-pages {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: 15px;
+}
+
+.displaying-num {
+	font-size: 13px;
+	color: #646970;
+	font-weight: 500;
+}
+
+.pagination-links {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.pagination-links ul.page-numbers {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	gap: 4px;
+}
+
+.pagination-links .page-numbers {
+	display: inline-block;
+	padding: 6px 10px;
+	margin: 0;
+	border: 1px solid #c3c4c7;
+	background: #fff;
+	text-decoration: none;
+	color: #2271b1;
+	border-radius: 2px;
+	font-size: 13px;
+	min-width: 32px;
+	text-align: center;
+	transition: all 0.2s;
+}
+
+.pagination-links .page-numbers.current {
+	background: #2271b1;
+	color: #fff;
+	border-color: #2271b1;
+	font-weight: 600;
+}
+
+.pagination-links .page-numbers:hover:not(.current):not(.dots) {
+	background: #f0f6fc;
+	border-color: #2271b1;
+}
+
+.pagination-links .page-numbers.dots {
+	border: none;
+	background: transparent;
+	color: #646970;
+	cursor: default;
+}
+
+.pagination-links .prev,
+.pagination-links .next {
+	font-weight: 500;
+}
+
+/* Per Page Selector */
+.per-page-selector {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.per-page-selector label {
+	font-size: 13px;
+	color: #1d2327;
+	font-weight: 500;
+}
+
+.per-page-selector select {
+	height: 28px;
+	padding: 0 24px 0 8px;
+	font-size: 13px;
+	border: 1px solid #8c8f94;
+	border-radius: 3px;
+	background-color: #fff;
+	cursor: pointer;
+}
+
+.per-page-selector select:focus {
+	border-color: #2271b1;
+	outline: 1px solid #2271b1;
+}
+
+/* Mobile responsive */
+@media screen and (max-width: 782px) {
+	.search-box {
+		flex-direction: column;
+		align-items: stretch;
+	}
+	
+	.leads-search-input {
+		width: 100%;
+		min-width: 0;
+	}
+	
+	.search-box .button {
+		width: 100%;
+		justify-content: center;
+	}
+	
+	.tablenav-pages {
+		flex-direction: column;
+		align-items: stretch;
+		gap: 10px;
+	}
+	
+	.pagination-links {
+		order: 1;
+		justify-content: center;
+	}
+	
+	.displaying-num {
+		order: 2;
+		text-align: center;
+	}
+	
+	.per-page-selector {
+		order: 3;
+		width: 100%;
+		justify-content: space-between;
+	}
+	
+	.per-page-selector select {
+		flex: 1;
+		max-width: 100px;
+	}
+}
+
+/* === END SEARCH & PAGINATION === */
+
+/* === SORTING & BULK ACTIONS (Phase 2.3) === */
+
+/* Bulk Actions Bar */
+.bulk-actions-bar {
+	margin-bottom: 12px;
+}
+
+.bulk-actions-bar .bulkactions {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+}
+
+.bulk-actions-bar select {
+	height: 32px;
+	padding: 0 8px;
+	font-size: 13px;
+}
+
+.bulk-actions-bar .button {
+	height: 32px;
+	line-height: 30px;
+}
+
+.bulk-actions-bar .button .dashicons {
+	width: 18px;
+	height: 18px;
+	font-size: 18px;
+}
+
+/* Sortable Columns */
+.wp-list-table th.sortable a,
+.wp-list-table th.sorted a {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 8px 10px;
+	text-decoration: none;
+	color: #1d2327;
+	gap: 5px;
+}
+
+.wp-list-table th.sortable a:hover,
+.wp-list-table th.sortable a:focus {
+	color: #135e96;
+}
+
+.wp-list-table th.sorted a {
+	color: #2271b1;
+	font-weight: 600;
+}
+
+.wp-list-table th.sortable .sorting-indicator,
+.wp-list-table th.sorted .sorting-indicator {
+	display: inline-flex;
+	align-items: center;
+	opacity: 0.5;
+}
+
+.wp-list-table th.sorted .sorting-indicator {
+	opacity: 1;
+}
+
+.wp-list-table th.sortable:hover .sorting-indicator {
+	opacity: 1;
+}
+
+.sorting-indicator .dashicons {
+	width: 16px;
+	height: 16px;
+	font-size: 16px;
+}
+
+/* Checkboxes */
+.check-column {
+	width: 2.2em;
+	padding: 11px 0 0 3px;
+	vertical-align: top;
+}
+
+.check-column input[type="checkbox"] {
+	margin: 0;
+}
+
+/* Priority Colors */
+.priority-urgent {
+	color: #f56565;
+}
+
+.priority-high {
+	color: #ed8936;
+}
+
+.priority-medium {
+	color: #4299e1;
+}
+
+.priority-low {
+	color: #718096;
+}
+
+/* Status Badge Enhancement */
+.status-badge {
+	display: inline-block;
+	padding: 4px 10px;
+	border-radius: 12px;
+	font-size: 11px;
+	font-weight: 600;
+	color: white;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+/* Mobile Responsive */
+@media screen and (max-width: 782px) {
+	.bulk-actions-bar .bulkactions {
+		flex-direction: column;
+		align-items: stretch;
+	}
+	
+	.bulk-actions-bar select,
+	.bulk-actions-bar .button {
+		width: 100%;
+	}
+	
+	.wp-list-table th.sortable a,
+	.wp-list-table th.sorted a {
+		font-size: 12px;
+		padding: 6px 8px;
+	}
+	
+	.sorting-indicator {
+		display: none !important;
+	}
+}
+
+/* === END SORTING & BULK ACTIONS === */
+
 /* === END LEADS FILTERS === */
+
 
