@@ -9,7 +9,7 @@
  * @since   1.0.0
  */
 
-if ( ! defined( 'ABSPATH' ) ) {
+if (!defined('ABSPATH')) {
 	exit; // Exit if accessed directly.
 }
 
@@ -20,7 +20,8 @@ if ( ! defined( 'ABSPATH' ) ) {
  *
  * @since 1.0.0
  */
-class AQOP_Core {
+class AQOP_Core
+{
 
 	/**
 	 * The single instance of the class.
@@ -47,8 +48,9 @@ class AQOP_Core {
 	 * @static
 	 * @return AQOP_Core Main instance.
 	 */
-	public static function get_instance() {
-		if ( is_null( self::$instance ) ) {
+	public static function get_instance()
+	{
+		if (is_null(self::$instance)) {
 			self::$instance = new self();
 		}
 		return self::$instance;
@@ -61,7 +63,8 @@ class AQOP_Core {
 	 *
 	 * @since 1.0.0
 	 */
-	private function __construct() {
+	private function __construct()
+	{
 		$this->version = AQOP_VERSION;
 		$this->load_dependencies();
 		$this->init_hooks();
@@ -76,7 +79,8 @@ class AQOP_Core {
 	 * @since  1.0.0
 	 * @access private
 	 */
-	private function load_dependencies() {
+	private function load_dependencies()
+	{
 		/**
 		 * Load the installer class responsible for database setup.
 		 */
@@ -103,14 +107,14 @@ class AQOP_Core {
 		 */
 		require_once AQOP_PLUGIN_DIR . 'includes/integrations/class-integrations-hub.php';
 
-	/**
-	 * Load admin classes.
-	 */
-	if ( is_admin() ) {
-		require_once AQOP_PLUGIN_DIR . 'admin/control-center/class-control-center.php';
-		// Initialize Control Center to register admin menu.
-		AQOP_Control_Center::init();
-	}
+		/**
+		 * Load admin classes.
+		 */
+		if (is_admin()) {
+			require_once AQOP_PLUGIN_DIR . 'admin/control-center/class-control-center.php';
+			// Initialize Control Center to register admin menu.
+			AQOP_Control_Center::init();
+		}
 
 		/**
 		 * Additional dependencies will be loaded here as we build the platform.
@@ -127,12 +131,16 @@ class AQOP_Core {
 	 * @since  1.0.0
 	 * @access private
 	 */
-	private function init_hooks() {
+	private function init_hooks()
+	{
 		// Load plugin textdomain for translations.
-		add_action( 'init', array( $this, 'load_textdomain' ) );
+		add_action('init', array($this, 'load_textdomain'));
+
+		// Initialize Integrations Hub (Async Handlers).
+		AQOP_Integrations_Hub::init();
 
 		// Add custom actions here as needed.
-		do_action( 'aqop_core_loaded', $this );
+		do_action('aqop_core_loaded', $this);
 	}
 
 	/**
@@ -141,11 +149,12 @@ class AQOP_Core {
 	 * @since  1.0.0
 	 * @access public
 	 */
-	public function load_textdomain() {
+	public function load_textdomain()
+	{
 		load_plugin_textdomain(
 			'aqop-core',
 			false,
-			dirname( AQOP_PLUGIN_BASENAME ) . '/languages/'
+			dirname(AQOP_PLUGIN_BASENAME) . '/languages/'
 		);
 	}
 
@@ -157,7 +166,8 @@ class AQOP_Core {
 	 * @since  1.0.0
 	 * @access private
 	 */
-	private function run() {
+	private function run()
+	{
 		/**
 		 * Fires after the core plugin has been initialized.
 		 *
@@ -165,7 +175,7 @@ class AQOP_Core {
 		 *
 		 * @param AQOP_Core $this The main plugin instance.
 		 */
-		do_action( 'aqop_core_run', $this );
+		do_action('aqop_core_run', $this);
 	}
 
 	/**
@@ -175,7 +185,8 @@ class AQOP_Core {
 	 * @access public
 	 * @return string Plugin version number.
 	 */
-	public function get_version() {
+	public function get_version()
+	{
 		return $this->version;
 	}
 
@@ -185,7 +196,9 @@ class AQOP_Core {
 	 * @since  1.0.0
 	 * @access private
 	 */
-	private function __clone() {}
+	private function __clone()
+	{
+	}
 
 	/**
 	 * Prevent unserializing of the instance.
@@ -193,6 +206,8 @@ class AQOP_Core {
 	 * @since  1.0.0
 	 * @access public
 	 */
-	public function __wakeup() {}
+	public function __wakeup()
+	{
+	}
 }
 

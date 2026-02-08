@@ -10,7 +10,7 @@
  * @since   1.0.0
  */
 
-if ( ! defined( 'ABSPATH' ) ) {
+if (!defined('ABSPATH')) {
 	exit; // Exit if accessed directly.
 }
 
@@ -22,7 +22,8 @@ if ( ! defined( 'ABSPATH' ) ) {
  *
  * @since 1.0.0
  */
-class AQOP_Installer {
+class AQOP_Installer
+{
 
 	/**
 	 * Run the installer.
@@ -34,21 +35,22 @@ class AQOP_Installer {
 	 * @static
 	 * @return array Installation status with detailed results.
 	 */
-	public static function install() {
+	public static function install()
+	{
 		$status = array(
-			'success'         => false,
-			'requirements'    => false,
-			'tables_created'  => array(),
-			'data_populated'  => array(),
-			'verification'    => array(),
-			'errors'          => array(),
+			'success' => false,
+			'requirements' => false,
+			'tables_created' => array(),
+			'data_populated' => array(),
+			'verification' => array(),
+			'errors' => array(),
 		);
 
 		// Check PHP version (>= 7.4).
-		if ( version_compare( PHP_VERSION, '7.4', '<' ) ) {
+		if (version_compare(PHP_VERSION, '7.4', '<')) {
 			$status['errors'][] = sprintf(
 				/* translators: %s: Required PHP version */
-				__( 'Operation Platform Core requires PHP version %s or higher. Current version: %s', 'aqop-core' ),
+				__('Operation Platform Core requires PHP version %s or higher. Current version: %s', 'aqop-core'),
 				'7.4',
 				PHP_VERSION
 			);
@@ -57,10 +59,10 @@ class AQOP_Installer {
 
 		// Check WordPress version (>= 5.8).
 		global $wp_version;
-		if ( version_compare( $wp_version, '5.8', '<' ) ) {
+		if (version_compare($wp_version, '5.8', '<')) {
 			$status['errors'][] = sprintf(
 				/* translators: %s: Required WordPress version */
-				__( 'Operation Platform Core requires WordPress version %s or higher. Current version: %s', 'aqop-core' ),
+				__('Operation Platform Core requires WordPress version %s or higher. Current version: %s', 'aqop-core'),
 				'5.8',
 				$wp_version
 			);
@@ -68,18 +70,18 @@ class AQOP_Installer {
 		}
 
 		// Check for required PHP extensions.
-		$required_extensions = array( 'json', 'mysqli', 'curl' );
-		foreach ( $required_extensions as $extension ) {
-			if ( ! extension_loaded( $extension ) ) {
+		$required_extensions = array('json', 'mysqli', 'curl');
+		foreach ($required_extensions as $extension) {
+			if (!extension_loaded($extension)) {
 				$status['errors'][] = sprintf(
 					/* translators: %s: Required PHP extension name */
-					__( 'Operation Platform Core requires the %s PHP extension.', 'aqop-core' ),
+					__('Operation Platform Core requires the %s PHP extension.', 'aqop-core'),
 					$extension
 				);
 			}
 		}
 
-		if ( ! empty( $status['errors'] ) ) {
+		if (!empty($status['errors'])) {
 			return $status;
 		}
 
@@ -98,11 +100,11 @@ class AQOP_Installer {
 		$status['verification'] = $verification;
 
 		// Set database version.
-		update_option( 'aqop_db_version', AQOP_VERSION );
-		update_option( 'aqop_install_date', current_time( 'mysql' ) );
+		update_option('aqop_db_version', AQOP_VERSION);
+		update_option('aqop_install_date', current_time('mysql'));
 
 		// Check if all tables exist.
-		$all_verified = ! in_array( false, $verification, true );
+		$all_verified = !in_array(false, $verification, true);
 		$status['success'] = $all_verified;
 
 		/**
@@ -112,7 +114,7 @@ class AQOP_Installer {
 		 *
 		 * @param array $status Installation status array.
 		 */
-		do_action( 'aqop_installation_complete', $status );
+		do_action('aqop_installation_complete', $status);
 
 		return $status;
 	}
@@ -129,7 +131,8 @@ class AQOP_Installer {
 	 * @access private
 	 * @return array List of created table names and their status.
 	 */
-	private static function create_tables() {
+	private static function create_tables()
+	{
 		global $wpdb;
 
 		$charset_collate = $wpdb->get_charset_collate();
@@ -170,8 +173,8 @@ class AQOP_Installer {
 			KEY idx_object (object_type, object_id)
 		) ENGINE=InnoDB $charset_collate;";
 
-		dbDelta( $sql_events );
-		$tables_created["{$wpdb->prefix}aq_events_log"] = self::table_exists( "{$wpdb->prefix}aq_events_log" );
+		dbDelta($sql_events);
+		$tables_created["{$wpdb->prefix}aq_events_log"] = self::table_exists("{$wpdb->prefix}aq_events_log");
 
 		/**
 		 * Table 2: Modules Dimension
@@ -187,8 +190,8 @@ class AQOP_Installer {
 			UNIQUE KEY module_code (module_code)
 		) ENGINE=InnoDB $charset_collate;";
 
-		dbDelta( $sql_modules );
-		$tables_created["{$wpdb->prefix}aq_dim_modules"] = self::table_exists( "{$wpdb->prefix}aq_dim_modules" );
+		dbDelta($sql_modules);
+		$tables_created["{$wpdb->prefix}aq_dim_modules"] = self::table_exists("{$wpdb->prefix}aq_dim_modules");
 
 		/**
 		 * Table 3: Event Types Dimension
@@ -208,8 +211,8 @@ class AQOP_Installer {
 			KEY idx_category (event_category)
 		) ENGINE=InnoDB $charset_collate;";
 
-		dbDelta( $sql_event_types );
-		$tables_created["{$wpdb->prefix}aq_dim_event_types"] = self::table_exists( "{$wpdb->prefix}aq_dim_event_types" );
+		dbDelta($sql_event_types);
+		$tables_created["{$wpdb->prefix}aq_dim_event_types"] = self::table_exists("{$wpdb->prefix}aq_dim_event_types");
 
 		/**
 		 * Table 4: Countries Dimension
@@ -227,8 +230,8 @@ class AQOP_Installer {
 			UNIQUE KEY country_code (country_code)
 		) ENGINE=InnoDB $charset_collate;";
 
-		dbDelta( $sql_countries );
-		$tables_created["{$wpdb->prefix}aq_dim_countries"] = self::table_exists( "{$wpdb->prefix}aq_dim_countries" );
+		dbDelta($sql_countries);
+		$tables_created["{$wpdb->prefix}aq_dim_countries"] = self::table_exists("{$wpdb->prefix}aq_dim_countries");
 
 		/**
 		 * Table 5: Date Dimension
@@ -253,8 +256,8 @@ class AQOP_Installer {
 			KEY idx_month (year, month)
 		) ENGINE=InnoDB $charset_collate;";
 
-		dbDelta( $sql_date );
-		$tables_created["{$wpdb->prefix}aq_dim_date"] = self::table_exists( "{$wpdb->prefix}aq_dim_date" );
+		dbDelta($sql_date);
+		$tables_created["{$wpdb->prefix}aq_dim_date"] = self::table_exists("{$wpdb->prefix}aq_dim_date");
 
 		/**
 		 * Table 6: Time Dimension
@@ -271,34 +274,143 @@ class AQOP_Installer {
 			PRIMARY KEY  (time_key)
 		) ENGINE=InnoDB $charset_collate;";
 
-		dbDelta( $sql_time );
-		$tables_created["{$wpdb->prefix}aq_dim_time"] = self::table_exists( "{$wpdb->prefix}aq_dim_time" );
+		dbDelta($sql_time);
+		$tables_created["{$wpdb->prefix}aq_dim_time"] = self::table_exists("{$wpdb->prefix}aq_dim_time");
 
 		/**
-		 * Table 7: Notification Rules
+		 * Table 7: Notifications Log
 		 *
-		 * Dynamic notification rules with conditions and actions.
+		 * Central notification log for all sent notifications with analytics.
+		 */
+		$sql_notifications = "CREATE TABLE {$wpdb->prefix}aq_notifications (
+			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			module_code varchar(50) NOT NULL,
+			event_type varchar(100) NOT NULL,
+			event_id bigint(20) UNSIGNED DEFAULT NULL,
+			priority enum('low','medium','high','critical') NOT NULL DEFAULT 'medium',
+			channel varchar(50) NOT NULL,
+			recipient_type enum('user','role','admin','custom') NOT NULL,
+			recipient_id varchar(255) DEFAULT NULL,
+			message_subject varchar(500) DEFAULT NULL,
+			message_body text NOT NULL,
+			metadata longtext DEFAULT NULL COMMENT 'JSON metadata',
+			status enum('pending','sent','failed','cancelled') NOT NULL DEFAULT 'pending',
+			sent_at datetime DEFAULT NULL,
+			failed_reason text DEFAULT NULL,
+			retry_count tinyint UNSIGNED DEFAULT 0,
+			created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			KEY idx_module (module_code),
+			KEY idx_event (event_type),
+			KEY idx_status (status),
+			KEY idx_channel (channel),
+			KEY idx_created (created_at),
+			KEY idx_priority (priority),
+			KEY idx_analysis (module_code, event_type, status, created_at)
+		) ENGINE=InnoDB $charset_collate;";
+
+		dbDelta($sql_notifications);
+		$tables_created["{$wpdb->prefix}aq_notifications"] = self::table_exists("{$wpdb->prefix}aq_notifications");
+
+		/**
+		 * Table 8: Notification Rules
+		 *
+		 * Rule-based notification routing with conditions.
 		 */
 		$sql_notification_rules = "CREATE TABLE {$wpdb->prefix}aq_notification_rules (
 			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
 			rule_name varchar(255) NOT NULL,
-			module varchar(50) NOT NULL,
+			module_code varchar(50) NOT NULL,
 			event_type varchar(100) NOT NULL,
-			conditions longtext,
-			actions longtext,
-			enabled tinyint(1) NOT NULL DEFAULT 1,
+			conditions longtext DEFAULT NULL COMMENT 'JSON conditions',
+			channels longtext NOT NULL COMMENT 'JSON array of channels',
+			recipient_config longtext NOT NULL COMMENT 'JSON recipient configuration',
+			message_template_subject varchar(500) DEFAULT NULL,
+			message_template_body text NOT NULL,
 			priority enum('low','medium','high','critical') NOT NULL DEFAULT 'medium',
-			created_by bigint(20) UNSIGNED DEFAULT NULL,
+			is_active tinyint(1) NOT NULL DEFAULT 1,
+			execution_order int UNSIGNED NOT NULL DEFAULT 0,
 			created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at datetime DEFAULT NULL,
 			PRIMARY KEY  (id),
-			KEY idx_module (module),
-			KEY idx_enabled (enabled),
-			KEY idx_priority (priority)
+			KEY idx_module (module_code),
+			KEY idx_event (event_type),
+			KEY idx_active (is_active),
+			KEY idx_order (execution_order)
 		) ENGINE=InnoDB $charset_collate;";
 
-		dbDelta( $sql_notification_rules );
-		$tables_created["{$wpdb->prefix}aq_notification_rules"] = self::table_exists( "{$wpdb->prefix}aq_notification_rules" );
+		dbDelta($sql_notification_rules);
+		$tables_created["{$wpdb->prefix}aq_notification_rules"] = self::table_exists("{$wpdb->prefix}aq_notification_rules");
+
+		/**
+		 * Table 9: Notification Templates
+		 *
+		 * Reusable message templates with variable support.
+		 */
+		$sql_notification_templates = "CREATE TABLE {$wpdb->prefix}aq_notification_templates (
+			id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			template_key varchar(100) NOT NULL,
+			template_name varchar(255) NOT NULL,
+			module_code varchar(50) NOT NULL,
+			event_type varchar(100) NOT NULL,
+			subject_template varchar(500) DEFAULT NULL,
+			body_template text NOT NULL,
+			available_variables longtext DEFAULT NULL COMMENT 'JSON array of variables',
+			created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at datetime DEFAULT NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY template_key (template_key),
+			KEY idx_module (module_code),
+			KEY idx_event (event_type)
+		) ENGINE=InnoDB $charset_collate;";
+
+		dbDelta($sql_notification_templates);
+		$tables_created["{$wpdb->prefix}aq_notification_templates"] = self::table_exists("{$wpdb->prefix}aq_notification_templates");
+
+		// User Sessions Table - Track active user sessions
+		$sql_user_sessions = "CREATE TABLE {$wpdb->prefix}aq_user_sessions (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			user_id bigint(20) unsigned NOT NULL,
+			session_token varchar(64) NOT NULL,
+			current_module varchar(50) DEFAULT NULL,
+			current_page varchar(255) DEFAULT NULL,
+			ip_address varchar(45) DEFAULT NULL,
+			user_agent text DEFAULT NULL,
+			last_activity datetime NOT NULL,
+			login_at datetime NOT NULL,
+			logout_at datetime DEFAULT NULL,
+			is_active tinyint(1) DEFAULT 1,
+			PRIMARY KEY  (id),
+			UNIQUE KEY session_token (session_token),
+			KEY idx_user (user_id),
+			KEY idx_active (is_active, last_activity),
+			KEY idx_login (login_at)
+		) ENGINE=InnoDB $charset_collate;";
+
+		dbDelta($sql_user_sessions);
+		$tables_created["{$wpdb->prefix}aq_user_sessions"] = self::table_exists("{$wpdb->prefix}aq_user_sessions");
+
+		// User Activity Table - Detailed activity log
+		$sql_user_activity = "CREATE TABLE {$wpdb->prefix}aq_user_activity (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			session_id bigint(20) unsigned NOT NULL,
+			user_id bigint(20) unsigned NOT NULL,
+			module_code varchar(50) NOT NULL,
+			action_type varchar(50) NOT NULL,
+			action_details text DEFAULT NULL,
+			page_url varchar(255) DEFAULT NULL,
+			ip_address varchar(45) DEFAULT NULL,
+			created_at datetime NOT NULL,
+			PRIMARY KEY  (id),
+			KEY idx_session (session_id),
+			KEY idx_user (user_id),
+			KEY idx_module (module_code),
+			KEY idx_time (created_at),
+			KEY idx_analysis (user_id, module_code, created_at)
+		) ENGINE=InnoDB $charset_collate;";
+
+		dbDelta($sql_user_activity);
+		$tables_created["{$wpdb->prefix}aq_user_activity"] = self::table_exists("{$wpdb->prefix}aq_user_activity");
 
 		/**
 		 * Fires after database tables have been created.
@@ -307,7 +419,7 @@ class AQOP_Installer {
 		 *
 		 * @param array $tables_created Array of table names and their creation status.
 		 */
-		do_action( 'aqop_tables_created', $tables_created );
+		do_action('aqop_tables_created', $tables_created);
 
 		return $tables_created;
 	}
@@ -323,25 +435,26 @@ class AQOP_Installer {
 	 * @access private
 	 * @return array Population status for each dimension table.
 	 */
-	private static function populate_dimension_tables() {
+	private static function populate_dimension_tables()
+	{
 		global $wpdb;
 
 		$status = array(
-			'modules'   => 0,
+			'modules' => 0,
 			'countries' => 0,
-			'dates'     => 0,
-			'times'     => 0,
+			'dates' => 0,
+			'times' => 0,
 		);
 
 		// Populate modules.
 		$modules = array(
-			array( 'core', 'Core Platform', 1 ),
-			array( 'leads', 'Leads Module', 1 ),
-			array( 'training', 'Training Module', 1 ),
-			array( 'kb', 'Knowledge Base', 1 ),
+			array('core', 'Core Platform', 1),
+			array('leads', 'Leads Module', 1),
+			array('training', 'Training Module', 1),
+			array('kb', 'Knowledge Base', 1),
 		);
 
-		foreach ( $modules as $module ) {
+		foreach ($modules as $module) {
 			$wpdb->query(
 				$wpdb->prepare(
 					"INSERT IGNORE INTO {$wpdb->prefix}aq_dim_modules (module_code, module_name, is_active) VALUES (%s, %s, %d)",
@@ -350,25 +463,25 @@ class AQOP_Installer {
 					$module[2]
 				)
 			);
-			if ( $wpdb->insert_id > 0 ) {
+			if ($wpdb->insert_id > 0) {
 				$status['modules']++;
 			}
 		}
 
 		// Populate countries.
 		$countries = array(
-			array( 'SA', 'Saudi Arabia', 'السعودية', 'GCC', 1 ),
-			array( 'AE', 'UAE', 'الإمارات', 'GCC', 1 ),
-			array( 'EG', 'Egypt', 'مصر', 'North Africa', 1 ),
-			array( 'QA', 'Qatar', 'قطر', 'GCC', 1 ),
-			array( 'KW', 'Kuwait', 'الكويت', 'GCC', 1 ),
-			array( 'BH', 'Bahrain', 'البحرين', 'GCC', 1 ),
-			array( 'OM', 'Oman', 'عمان', 'GCC', 1 ),
-			array( 'JO', 'Jordan', 'الأردن', 'Levant', 1 ),
-			array( 'TR', 'Turkey', 'تركيا', 'MENA', 1 ),
+			array('SA', 'Saudi Arabia', 'السعودية', 'GCC', 1),
+			array('AE', 'UAE', 'الإمارات', 'GCC', 1),
+			array('EG', 'Egypt', 'مصر', 'North Africa', 1),
+			array('QA', 'Qatar', 'قطر', 'GCC', 1),
+			array('KW', 'Kuwait', 'الكويت', 'GCC', 1),
+			array('BH', 'Bahrain', 'البحرين', 'GCC', 1),
+			array('OM', 'Oman', 'عمان', 'GCC', 1),
+			array('JO', 'Jordan', 'الأردن', 'Levant', 1),
+			array('TR', 'Turkey', 'تركيا', 'MENA', 1),
 		);
 
-		foreach ( $countries as $country ) {
+		foreach ($countries as $country) {
 			$wpdb->query(
 				$wpdb->prepare(
 					"INSERT IGNORE INTO {$wpdb->prefix}aq_dim_countries (country_code, country_name_en, country_name_ar, region, is_active) VALUES (%s, %s, %s, %s, %d)",
@@ -379,13 +492,13 @@ class AQOP_Installer {
 					$country[4]
 				)
 			);
-			if ( $wpdb->insert_id > 0 ) {
+			if ($wpdb->insert_id > 0) {
 				$status['countries']++;
 			}
 		}
 
 		// Generate date dimension.
-		$status['dates'] = self::generate_date_dimension( '2024-01-01', '2025-12-31' );
+		$status['dates'] = self::generate_date_dimension('2024-01-01', '2025-12-31');
 
 		// Generate time dimension.
 		$status['times'] = self::generate_time_dimension();
@@ -397,7 +510,7 @@ class AQOP_Installer {
 		 *
 		 * @param array $status Population status array.
 		 */
-		do_action( 'aqop_dimension_tables_populated', $status );
+		do_action('aqop_dimension_tables_populated', $status);
 
 		return $status;
 	}
@@ -415,20 +528,21 @@ class AQOP_Installer {
 	 * @param  string $end_date   End date in Y-m-d format.
 	 * @return int Number of dates inserted.
 	 */
-	private static function generate_date_dimension( $start_date = '2024-01-01', $end_date = '2025-12-31' ) {
+	private static function generate_date_dimension($start_date = '2024-01-01', $end_date = '2025-12-31')
+	{
 		global $wpdb;
 
 		// Arabic month names.
 		$arabic_months = array(
-			1  => 'يناير',
-			2  => 'فبراير',
-			3  => 'مارس',
-			4  => 'أبريل',
-			5  => 'مايو',
-			6  => 'يونيو',
-			7  => 'يوليو',
-			8  => 'أغسطس',
-			9  => 'سبتمبر',
+			1 => 'يناير',
+			2 => 'فبراير',
+			3 => 'مارس',
+			4 => 'أبريل',
+			5 => 'مايو',
+			6 => 'يونيو',
+			7 => 'يوليو',
+			8 => 'أغسطس',
+			9 => 'سبتمبر',
 			10 => 'أكتوبر',
 			11 => 'نوفمبر',
 			12 => 'ديسمبر',
@@ -445,32 +559,32 @@ class AQOP_Installer {
 			7 => 'السبت',
 		);
 
-		$start = new DateTime( $start_date );
-		$end = new DateTime( $end_date );
-		$interval = new DateInterval( 'P1D' );
-		$date_range = new DatePeriod( $start, $interval, $end->modify( '+1 day' ) );
+		$start = new DateTime($start_date);
+		$end = new DateTime($end_date);
+		$interval = new DateInterval('P1D');
+		$date_range = new DatePeriod($start, $interval, $end->modify('+1 day'));
 
 		$batch = array();
 		$count = 0;
 		$batch_size = 100;
 
-		foreach ( $date_range as $date ) {
-			$date_key = (int) $date->format( 'Ymd' );
-			$full_date = $date->format( 'Y-m-d' );
-			$year = (int) $date->format( 'Y' );
-			$quarter = (int) ceil( (int) $date->format( 'n' ) / 3 );
-			$month = (int) $date->format( 'n' );
-			$month_name = $arabic_months[ $month ];
-			$week_of_year = (int) $date->format( 'W' );
-			$day_of_month = (int) $date->format( 'j' );
-			$day_of_week = (int) $date->format( 'N' ); // 1=Monday, 7=Sunday in ISO-8601.
+		foreach ($date_range as $date) {
+			$date_key = (int) $date->format('Ymd');
+			$full_date = $date->format('Y-m-d');
+			$year = (int) $date->format('Y');
+			$quarter = (int) ceil((int) $date->format('n') / 3);
+			$month = (int) $date->format('n');
+			$month_name = $arabic_months[$month];
+			$week_of_year = (int) $date->format('W');
+			$day_of_month = (int) $date->format('j');
+			$day_of_week = (int) $date->format('N'); // 1=Monday, 7=Sunday in ISO-8601.
 
 			// Adjust to 1=Sunday, 7=Saturday.
-			$day_of_week_adjusted = ( $day_of_week === 7 ) ? 1 : $day_of_week + 1;
-			$day_name = $arabic_days[ $day_of_week_adjusted ];
+			$day_of_week_adjusted = ($day_of_week === 7) ? 1 : $day_of_week + 1;
+			$day_name = $arabic_days[$day_of_week_adjusted];
 
 			// Weekend: Friday (6) and Saturday (7).
-			$is_weekend = ( $day_of_week_adjusted === 6 || $day_of_week_adjusted === 7 ) ? 1 : 0;
+			$is_weekend = ($day_of_week_adjusted === 6 || $day_of_week_adjusted === 7) ? 1 : 0;
 
 			$batch[] = $wpdb->prepare(
 				'(%d, %s, %d, %d, %d, %s, %d, %d, %d, %s, %d, 0)',
@@ -490,8 +604,8 @@ class AQOP_Installer {
 			$count++;
 
 			// Insert in batches of 100.
-			if ( count( $batch ) >= $batch_size ) {
-				$values = implode( ', ', $batch );
+			if (count($batch) >= $batch_size) {
+				$values = implode(', ', $batch);
 				// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 				$wpdb->query(
 					"INSERT IGNORE INTO {$wpdb->prefix}aq_dim_date 
@@ -503,8 +617,8 @@ class AQOP_Installer {
 		}
 
 		// Insert remaining records.
-		if ( ! empty( $batch ) ) {
-			$values = implode( ', ', $batch );
+		if (!empty($batch)) {
+			$values = implode(', ', $batch);
 			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
 			$wpdb->query(
 				"INSERT IGNORE INTO {$wpdb->prefix}aq_dim_date 
@@ -527,29 +641,30 @@ class AQOP_Installer {
 	 * @access private
 	 * @return int Number of time records inserted.
 	 */
-	private static function generate_time_dimension() {
+	private static function generate_time_dimension()
+	{
 		global $wpdb;
 
 		$count = 0;
 
-		for ( $hour = 0; $hour < 24; $hour++ ) {
+		for ($hour = 0; $hour < 24; $hour++) {
 			$time_key = $hour * 10000; // Format: HHMMSS (e.g., 140000 for 14:00:00).
 			$minute = 0;
 			$second = 0;
 
 			// Determine time period.
-			if ( $hour >= 6 && $hour < 12 ) {
+			if ($hour >= 6 && $hour < 12) {
 				$time_period = 'morning';
-			} elseif ( $hour >= 12 && $hour < 18 ) {
+			} elseif ($hour >= 12 && $hour < 18) {
 				$time_period = 'afternoon';
-			} elseif ( $hour >= 18 && $hour < 22 ) {
+			} elseif ($hour >= 18 && $hour < 22) {
 				$time_period = 'evening';
 			} else {
 				$time_period = 'night';
 			}
 
 			// Business hours: 9 AM to 6 PM (9-17 inclusive).
-			$is_business_hours = ( $hour >= 9 && $hour < 18 ) ? 1 : 0;
+			$is_business_hours = ($hour >= 9 && $hour < 18) ? 1 : 0;
 
 			$wpdb->query(
 				$wpdb->prepare(
@@ -563,7 +678,7 @@ class AQOP_Installer {
 				)
 			);
 
-			if ( $wpdb->insert_id > 0 ) {
+			if ($wpdb->insert_id > 0) {
 				$count++;
 			}
 		}
@@ -581,7 +696,8 @@ class AQOP_Installer {
 	 * @access private
 	 * @return array Table existence status array.
 	 */
-	private static function verify_installation() {
+	private static function verify_installation()
+	{
 		global $wpdb;
 
 		$required_tables = array(
@@ -591,14 +707,18 @@ class AQOP_Installer {
 			'aq_dim_countries',
 			'aq_dim_date',
 			'aq_dim_time',
+			'aq_notifications',
 			'aq_notification_rules',
+			'aq_notification_templates',
+			'aq_user_sessions',
+			'aq_user_activity',
 		);
 
 		$verification = array();
 
-		foreach ( $required_tables as $table ) {
+		foreach ($required_tables as $table) {
 			$full_table_name = $wpdb->prefix . $table;
-			$verification[ $table ] = self::table_exists( $full_table_name );
+			$verification[$table] = self::table_exists($full_table_name);
 		}
 
 		return $verification;
@@ -615,7 +735,8 @@ class AQOP_Installer {
 	 * @param  string $table_name Full table name including prefix.
 	 * @return bool True if table exists, false otherwise.
 	 */
-	private static function table_exists( $table_name ) {
+	private static function table_exists($table_name)
+	{
 		global $wpdb;
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
@@ -639,8 +760,9 @@ class AQOP_Installer {
 	 * @static
 	 * @return bool True if all tables exist, false otherwise.
 	 */
-	public static function tables_exist() {
+	public static function tables_exist()
+	{
 		$verification = self::verify_installation();
-		return ! in_array( false, $verification, true );
+		return !in_array(false, $verification, true);
 	}
 }
