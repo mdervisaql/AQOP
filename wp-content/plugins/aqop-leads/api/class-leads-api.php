@@ -172,6 +172,44 @@ class AQOP_Leads_API
 			)
 		);
 
+		// === LEARNING PATHS ===
+
+		// Get learning paths (GET /aqop/v1/leads/learning-paths)
+		register_rest_route(
+			$this->namespace,
+			'/leads/learning-paths',
+			array(
+				array(
+					'methods' => WP_REST_Server::READABLE,
+					'callback' => array($this, 'get_learning_paths'),
+					'permission_callback' => '__return_true',
+				),
+				array(
+					'methods' => WP_REST_Server::CREATABLE,
+					'callback' => array($this, 'create_learning_path'),
+					'permission_callback' => array($this, 'check_admin_permission'),
+				),
+			)
+		);
+
+		// Update/Delete learning path
+		register_rest_route(
+			$this->namespace,
+			'/leads/learning-paths/(?P<id>\d+)',
+			array(
+				array(
+					'methods' => WP_REST_Server::EDITABLE,
+					'callback' => array($this, 'update_learning_path'),
+					'permission_callback' => array($this, 'check_admin_permission'),
+				),
+				array(
+					'methods' => WP_REST_Server::DELETABLE,
+					'callback' => array($this, 'delete_learning_path'),
+					'permission_callback' => array($this, 'check_admin_permission'),
+				),
+			)
+		);
+
 		// Get statistics (GET /aqop/v1/leads/stats)
 		register_rest_route(
 			$this->namespace,
@@ -179,6 +217,17 @@ class AQOP_Leads_API
 			array(
 				'methods' => WP_REST_Server::READABLE,
 				'callback' => array($this, 'get_stats'),
+				'permission_callback' => array($this, 'check_permission'),
+			)
+		);
+
+		// Get funnel statistics (GET /aqop/v1/leads/funnel-stats)
+		register_rest_route(
+			$this->namespace,
+			'/leads/funnel-stats',
+			array(
+				'methods' => WP_REST_Server::READABLE,
+				'callback' => array($this, 'get_funnel_stats'),
 				'permission_callback' => array($this, 'check_permission'),
 			)
 		);
@@ -616,11 +665,26 @@ class AQOP_Leads_API
 			$args['assigned_to'] = get_current_user_id();
 		}
 
-		// Auto-filter for Country Managers: only show leads from their country
+		// Auto-filter for Country Managers: only show leads from their countries
 		if (current_user_can('manage_country_leads') && !current_user_can('manage_options')) {
-			$user_country = get_user_meta(get_current_user_id(), 'aq_assigned_country', true);
-			if ($user_country) {
-				$args['country'] = absint($user_country);
+			require_once AQOP_LEADS_PLUGIN_DIR . 'api/class-users-api.php';
+			$user_countries = AQOP_Leads_Users_API::get_user_countries(get_current_user_id());
+			
+			// If user selected a specific country from filter, validate it's in their assigned countries
+			if (!empty($params['country'])) {
+				$selected_country = absint($params['country']);
+				if (in_array($selected_country, $user_countries, true)) {
+					// User selected a valid country from their list - use it
+					$args['country'] = $selected_country;
+				} else {
+					// User tried to filter by a country they don't have access to - show nothing
+					$args['countries'] = array(-1);
+				}
+			} else {
+				// No specific country selected - show all their assigned countries
+				if (!empty($user_countries)) {
+					$args['countries'] = $user_countries;
+				}
 			}
 		}
 
@@ -679,11 +743,12 @@ class AQOP_Leads_API
 
 		// Check ownership for Country Managers
 		if (current_user_can('manage_country_leads') && !current_user_can('manage_options')) {
-			$user_country = get_user_meta(get_current_user_id(), 'aq_assigned_country', true);
-			if ($user_country && (int) $lead->country_id !== (int) $user_country) {
+			require_once AQOP_LEADS_PLUGIN_DIR . 'api/class-users-api.php';
+			$user_countries = AQOP_Leads_Users_API::get_user_countries(get_current_user_id());
+			if (!empty($user_countries) && !in_array((int) $lead->country_id, $user_countries, true)) {
 				return new WP_Error(
 					'forbidden',
-					__('You can only view leads from your assigned country.', 'aqop-leads'),
+					__('You can only view leads from your assigned countries.', 'aqop-leads'),
 					array('status' => 403)
 				);
 			}
@@ -840,7 +905,7 @@ class AQOP_Leads_API
 
 		$lead_data = array();
 
-		$allowed_fields = array('name', 'email', 'phone', 'whatsapp', 'country_id', 'source_id', 'campaign_id', 'status', 'status_code', 'priority', 'assigned_to');
+		$allowed_fields = array('name', 'email', 'phone', 'whatsapp', 'country_id', 'source_id', 'campaign_id', 'status', 'status_code', 'priority', 'assigned_to', 'lost_reason', 'deal_stage', 'learning_path_id');
 
 		foreach ($allowed_fields as $field) {
 			if (isset($params[$field])) {
@@ -861,10 +926,29 @@ class AQOP_Leads_API
 					if ($status_id) {
 						$lead_data['status_id'] = $status_id;
 					}
+				} elseif ('lost_reason' === $field) {
+					$lead_data[$field] = sanitize_textarea_field($params[$field]);
+				} elseif ('deal_stage' === $field) {
+					$valid_stages = array('discovery', 'offer_sent', 'negotiation', 'commit', 'closed_won', 'closed_lost');
+					if (in_array($params[$field], $valid_stages, true)) {
+						$lead_data[$field] = sanitize_text_field($params[$field]);
+					}
+				} elseif ('learning_path_id' === $field) {
+					$lead_data[$field] = absint($params[$field]) ?: null;
 				} else {
 					$lead_data[$field] = sanitize_text_field($params[$field]);
 				}
 			}
+		}
+
+		// If status is being changed away from "lost", clear the lost_reason
+		if (isset($params['status_code']) && $params['status_code'] !== 'lost') {
+			$lead_data['lost_reason'] = null;
+		}
+
+		// If status is being changed away from "qualified", clear the deal_stage
+		if (isset($params['status_code']) && $params['status_code'] !== 'qualified') {
+			$lead_data['deal_stage'] = null;
 		}
 
 		if (empty($lead_data)) {
@@ -1016,6 +1100,122 @@ class AQOP_Leads_API
 		);
 	}
 
+	// === LEARNING PATHS METHODS ===
+
+	/**
+	 * Get learning paths.
+	 */
+	public function get_learning_paths()
+	{
+		global $wpdb;
+
+		$table = $wpdb->prefix . 'aq_learning_paths';
+
+		// Check if table exists
+		$exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table));
+		if (!$exists) {
+			return new WP_REST_Response(array('success' => true, 'data' => array()));
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+		$paths = $wpdb->get_results(
+			"SELECT * FROM {$table} WHERE is_active = 1 ORDER BY display_order ASC, name_en ASC"
+		);
+
+		return new WP_REST_Response(array('success' => true, 'data' => $paths));
+	}
+
+	/**
+	 * Create learning path.
+	 */
+	public function create_learning_path($request)
+	{
+		global $wpdb;
+		$params = $request->get_params();
+
+		if (empty($params['name_en']) || empty($params['name_ar'])) {
+			return new WP_Error('missing_fields', 'name_en and name_ar are required', array('status' => 400));
+		}
+
+		$inserted = $wpdb->insert(
+			$wpdb->prefix . 'aq_learning_paths',
+			array(
+				'name_en' => sanitize_text_field($params['name_en']),
+				'name_ar' => sanitize_text_field($params['name_ar']),
+				'description' => isset($params['description']) ? sanitize_textarea_field($params['description']) : null,
+				'display_order' => isset($params['display_order']) ? absint($params['display_order']) : 0,
+				'is_active' => 1,
+			),
+			array('%s', '%s', '%s', '%d', '%d')
+		);
+
+		if (!$inserted) {
+			return new WP_Error('db_error', 'Failed to create learning path', array('status' => 500));
+		}
+
+		return new WP_REST_Response(array(
+			'success' => true,
+			'data' => array('id' => $wpdb->insert_id),
+			'message' => 'Learning path created',
+		));
+	}
+
+	/**
+	 * Update learning path.
+	 */
+	public function update_learning_path($request)
+	{
+		global $wpdb;
+		$id = absint($request['id']);
+		$params = $request->get_params();
+
+		$update_data = array();
+		if (isset($params['name_en'])) $update_data['name_en'] = sanitize_text_field($params['name_en']);
+		if (isset($params['name_ar'])) $update_data['name_ar'] = sanitize_text_field($params['name_ar']);
+		if (isset($params['description'])) $update_data['description'] = sanitize_textarea_field($params['description']);
+		if (isset($params['display_order'])) $update_data['display_order'] = absint($params['display_order']);
+		if (isset($params['is_active'])) $update_data['is_active'] = absint($params['is_active']);
+
+		if (empty($update_data)) {
+			return new WP_Error('no_fields', 'No fields to update', array('status' => 400));
+		}
+
+		$updated = $wpdb->update($wpdb->prefix . 'aq_learning_paths', $update_data, array('id' => $id));
+
+		return new WP_REST_Response(array('success' => (bool) $updated, 'message' => 'Learning path updated'));
+	}
+
+	/**
+	 * Delete learning path.
+	 */
+	public function delete_learning_path($request)
+	{
+		global $wpdb;
+		$id = absint($request['id']);
+
+		// Soft delete - just deactivate
+		$updated = $wpdb->update(
+			$wpdb->prefix . 'aq_learning_paths',
+			array('is_active' => 0),
+			array('id' => $id)
+		);
+
+		return new WP_REST_Response(array('success' => (bool) $updated, 'message' => 'Learning path deactivated'));
+	}
+
+	/**
+	 * Check admin permission.
+	 */
+	public function check_admin_permission()
+	{
+		if (!is_user_logged_in()) {
+			return new WP_Error('rest_not_logged_in', 'You must be logged in.', array('status' => 401));
+		}
+		$user = wp_get_current_user();
+		$allowed = array('administrator', 'operation_admin', 'operation_manager');
+		return (bool) array_intersect($allowed, $user->roles);
+	}
+
 	/**
 	 * Get statistics.
 	 *
@@ -1029,10 +1229,19 @@ class AQOP_Leads_API
 		$user_id = get_current_user_id();
 		$where_clause = '';
 
-		// If not admin, show only assigned leads
-		if (!current_user_can('manage_options')) {
+		// Country Manager: filter by assigned countries
+		if (current_user_can('manage_country_leads') && !current_user_can('manage_options')) {
+			require_once AQOP_LEADS_PLUGIN_DIR . 'api/class-users-api.php';
+			$user_countries = AQOP_Leads_Users_API::get_user_countries($user_id);
+			if (!empty($user_countries)) {
+				$placeholders = implode(',', array_fill(0, count($user_countries), '%d'));
+				$where_clause = $wpdb->prepare(" AND country_id IN ({$placeholders})", ...$user_countries);
+			}
+		} elseif (!current_user_can('manage_options') && !$this->is_manager_or_above()) {
+			// Agents/Supervisors: show only assigned leads
 			$where_clause = $wpdb->prepare(' AND assigned_to = %d', $user_id);
 		}
+		// Admins/Managers: no filter, see all
 
 		// Get total leads
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
@@ -1088,6 +1297,142 @@ class AQOP_Leads_API
 			array(
 				'success' => true,
 				'data' => $stats,
+			)
+		);
+	}
+
+	/**
+	 * Get funnel statistics with conversion rates.
+	 *
+	 * @since 1.0.6
+	 * @return WP_REST_Response Response object.
+	 */
+	public function get_funnel_stats()
+	{
+		global $wpdb;
+
+		$user_id = get_current_user_id();
+		$where_clause = '';
+		$user_country_id = null;
+
+		// Country Manager: filter by assigned countries
+		if (current_user_can('manage_country_leads') && !current_user_can('manage_options')) {
+			require_once AQOP_LEADS_PLUGIN_DIR . 'api/class-users-api.php';
+			$user_countries = AQOP_Leads_Users_API::get_user_countries($user_id);
+			if (!empty($user_countries)) {
+				$placeholders = implode(',', array_fill(0, count($user_countries), '%d'));
+				$where_clause = $wpdb->prepare(" AND country_id IN ({$placeholders})", ...$user_countries);
+				// For single country managers, use their country targets
+				if (count($user_countries) === 1) {
+					$user_country_id = $user_countries[0];
+				}
+			}
+		} elseif (!current_user_can('manage_options') && !$this->is_manager_or_above()) {
+			// Agents/Supervisors: show only assigned leads
+			$where_clause = $wpdb->prepare(' AND assigned_to = %d', $user_id);
+		}
+
+		// Get conversion targets (country-specific or global)
+		$targets_table = $wpdb->prefix . 'aq_conversion_targets';
+		$targets = null;
+		
+		if ($user_country_id) {
+			// Try to get country-specific targets
+			$targets = $wpdb->get_row(
+				$wpdb->prepare(
+					"SELECT * FROM {$targets_table} WHERE country_id = %d",
+					$user_country_id
+				),
+				ARRAY_A
+			);
+		}
+		
+		// Fallback to global targets
+		if (!$targets) {
+			$targets = $wpdb->get_row(
+				"SELECT * FROM {$targets_table} WHERE country_id IS NULL",
+				ARRAY_A
+			);
+		}
+		
+		// Default hardcoded targets as last resort
+		if (!$targets) {
+			$targets = array(
+				'lead_to_response_target' => 30.0,
+				'response_to_qualified_target' => 25.0,
+				'qualified_to_converted_target' => 40.0,
+				'overall_target' => 5.0,
+			);
+		}
+
+		// Get funnel counts
+		// Stage 1: Total Leads (all leads)
+		$total_leads = (int) $wpdb->get_var(
+			"SELECT COUNT(*) FROM {$wpdb->prefix}aq_leads WHERE 1=1 {$where_clause}"
+		);
+
+		// Stage 2: Responded (contacted or higher)
+		$responded = (int) $wpdb->get_var(
+			"SELECT COUNT(*) FROM {$wpdb->prefix}aq_leads l
+			 JOIN {$wpdb->prefix}aq_leads_status s ON l.status_id = s.id
+			 WHERE s.status_code IN ('contacted', 'qualified', 'converted') {$where_clause}"
+		);
+
+		// Stage 3: Qualified (qualified or converted)
+		$qualified = (int) $wpdb->get_var(
+			"SELECT COUNT(*) FROM {$wpdb->prefix}aq_leads l
+			 JOIN {$wpdb->prefix}aq_leads_status s ON l.status_id = s.id
+			 WHERE s.status_code IN ('qualified', 'converted') {$where_clause}"
+		);
+
+		// Stage 4: Converted (paid/enrolled)
+		$converted = (int) $wpdb->get_var(
+			"SELECT COUNT(*) FROM {$wpdb->prefix}aq_leads l
+			 JOIN {$wpdb->prefix}aq_leads_status s ON l.status_id = s.id
+			 WHERE s.status_code = 'converted' {$where_clause}"
+		);
+
+		// Calculate conversion rates
+		$lead_to_response_rate = $total_leads > 0 ? round(($responded / $total_leads) * 100, 1) : 0;
+		$response_to_qualified_rate = $responded > 0 ? round(($qualified / $responded) * 100, 1) : 0;
+		$qualified_to_converted_rate = $qualified > 0 ? round(($converted / $qualified) * 100, 1) : 0;
+		$overall_conversion_rate = $total_leads > 0 ? round(($converted / $total_leads) * 100, 1) : 0;
+
+		// Use dynamic targets for alerts
+		$lead_target = floatval($targets['lead_to_response_target']);
+		$qualified_target = floatval($targets['response_to_qualified_target']);
+		$converted_target = floatval($targets['qualified_to_converted_target']);
+		$overall_target = floatval($targets['overall_target']);
+
+		return new WP_REST_Response(
+			array(
+				'success' => true,
+				'data' => array(
+					'funnel' => array(
+						'total_leads' => $total_leads,
+						'responded' => $responded,
+						'qualified' => $qualified,
+						'converted' => $converted,
+					),
+					'conversion_rates' => array(
+						'lead_to_response' => $lead_to_response_rate,
+						'response_to_qualified' => $response_to_qualified_rate,
+						'qualified_to_converted' => $qualified_to_converted_rate,
+						'overall' => $overall_conversion_rate,
+					),
+					'targets' => array(
+						'lead_to_response' => $lead_target,
+						'response_to_qualified' => $qualified_target,
+						'qualified_to_converted' => $converted_target,
+						'overall' => $overall_target,
+					),
+					'alerts' => array(
+						'low_response_rate' => $lead_to_response_rate < $lead_target,
+						'low_qualification_rate' => $response_to_qualified_rate < $qualified_target,
+						'low_conversion_rate' => $qualified_to_converted_rate < $converted_target,
+						'overall_below_target' => $overall_conversion_rate < $overall_target,
+					),
+				),
 			)
 		);
 	}
@@ -1245,7 +1590,7 @@ class AQOP_Leads_API
 		}
 
 		// Allow these roles
-		$allowed_roles = array('administrator', 'operation_admin', 'operation_manager', 'aq_supervisor', 'aq_agent');
+		$allowed_roles = array('administrator', 'operation_admin', 'operation_manager', 'aq_country_manager', 'aq_supervisor', 'aq_agent');
 		$user = wp_get_current_user();
 
 		if (!array_intersect($allowed_roles, $user->roles)) {
@@ -1322,7 +1667,7 @@ class AQOP_Leads_API
 		}
 
 		// Allow all AQOP roles (ownership checked in update_lead method)
-		$allowed_roles = array('administrator', 'operation_admin', 'operation_manager', 'aq_supervisor', 'aq_agent');
+		$allowed_roles = array('administrator', 'operation_admin', 'operation_manager', 'aq_country_manager', 'aq_supervisor', 'aq_agent');
 		$user = wp_get_current_user();
 
 		if (!array_intersect($allowed_roles, $user->roles)) {
@@ -1391,7 +1736,7 @@ class AQOP_Leads_API
 	private function is_supervisor_or_above()
 	{
 		$user = wp_get_current_user();
-		$manager_roles = array('administrator', 'operation_admin', 'operation_manager', 'aq_supervisor');
+		$manager_roles = array('administrator', 'operation_admin', 'operation_manager', 'aq_country_manager', 'aq_supervisor');
 		return !empty(array_intersect($manager_roles, $user->roles));
 	}
 
@@ -1404,7 +1749,7 @@ class AQOP_Leads_API
 	private function is_manager_or_above()
 	{
 		$user = wp_get_current_user();
-		$manager_roles = array('administrator', 'operation_admin', 'operation_manager');
+		$manager_roles = array('administrator', 'operation_admin', 'operation_manager', 'aq_country_manager');
 		return !empty(array_intersect($manager_roles, $user->roles));
 	}
 
@@ -1553,6 +1898,19 @@ class AQOP_Leads_API
 				'type' => 'integer',
 				'sanitize_callback' => 'absint',
 			),
+			'lost_reason' => array(
+				'type' => 'string',
+				'sanitize_callback' => 'sanitize_textarea_field',
+			),
+			'deal_stage' => array(
+				'type' => 'string',
+				'enum' => array('discovery', 'offer_sent', 'negotiation', 'commit', 'closed_won', 'closed_lost'),
+				'sanitize_callback' => 'sanitize_text_field',
+			),
+			'learning_path_id' => array(
+				'type' => 'integer',
+				'sanitize_callback' => 'absint',
+			),
 			'note' => array(
 				'type' => 'string',
 				'sanitize_callback' => 'sanitize_textarea_field',
@@ -1615,6 +1973,19 @@ class AQOP_Leads_API
 				'sanitize_callback' => 'sanitize_text_field',
 			),
 			'assigned_to' => array(
+				'type' => 'integer',
+				'sanitize_callback' => 'absint',
+			),
+			'lost_reason' => array(
+				'type' => 'string',
+				'sanitize_callback' => 'sanitize_textarea_field',
+			),
+			'deal_stage' => array(
+				'type' => 'string',
+				'enum' => array('discovery', 'offer_sent', 'negotiation', 'commit', 'closed_won', 'closed_lost'),
+				'sanitize_callback' => 'sanitize_text_field',
+			),
+			'learning_path_id' => array(
 				'type' => 'integer',
 				'sanitize_callback' => 'absint',
 			),

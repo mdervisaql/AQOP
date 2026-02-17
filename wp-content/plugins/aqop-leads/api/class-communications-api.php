@@ -96,6 +96,47 @@ class AQOP_Communications_API extends WP_REST_Controller
                 'permission_callback' => array($this, 'check_permission'),
             ),
         ));
+
+        // Create follow-up (standalone - for next step scheduling)
+        register_rest_route($namespace, '/follow-ups', array(
+            array(
+                'methods' => WP_REST_Server::CREATABLE,
+                'callback' => array($this, 'create_follow_up'),
+                'permission_callback' => array($this, 'check_permission'),
+                'args' => array(
+                    'lead_id' => array(
+                        'required' => true,
+                        'type' => 'integer',
+                        'sanitize_callback' => 'absint',
+                    ),
+                    'title' => array(
+                        'required' => true,
+                        'type' => 'string',
+                        'sanitize_callback' => 'sanitize_text_field',
+                    ),
+                    'description' => array(
+                        'type' => 'string',
+                        'sanitize_callback' => 'sanitize_textarea_field',
+                    ),
+                    'due_date' => array(
+                        'required' => true,
+                        'type' => 'string',
+                        'sanitize_callback' => 'sanitize_text_field',
+                    ),
+                    'contact_method' => array(
+                        'type' => 'string',
+                        'enum' => array('call', 'whatsapp', 'email', 'meeting', 'sms'),
+                        'sanitize_callback' => 'sanitize_text_field',
+                    ),
+                    'priority' => array(
+                        'type' => 'string',
+                        'enum' => array('low', 'medium', 'high'),
+                        'default' => 'medium',
+                        'sanitize_callback' => 'sanitize_text_field',
+                    ),
+                ),
+            ),
+        ));
     }
 
     /**
@@ -306,6 +347,98 @@ class AQOP_Communications_API extends WP_REST_Controller
         );
 
         return rest_ensure_response(array('success' => (bool) $updated));
+    }
+
+    /**
+     * Create a standalone follow-up (next step).
+     */
+    public function create_follow_up($request)
+    {
+        global $wpdb;
+        $user_id = get_current_user_id();
+        $params = $request->get_params();
+
+        $lead_id = absint($params['lead_id']);
+
+        // Verify lead exists
+        $lead = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT id, name FROM {$wpdb->prefix}aq_leads WHERE id = %d",
+                $lead_id
+            )
+        );
+
+        if (!$lead) {
+            return new WP_Error('not_found', 'Lead not found', array('status' => 404));
+        }
+
+        // Build description with contact method
+        $contact_method = isset($params['contact_method']) ? sanitize_text_field($params['contact_method']) : '';
+        $description = isset($params['description']) ? sanitize_textarea_field($params['description']) : '';
+
+        if ($contact_method) {
+            $method_labels = array(
+                'call' => 'اتصال هاتفي',
+                'whatsapp' => 'واتساب',
+                'email' => 'بريد إلكتروني',
+                'meeting' => 'اجتماع',
+                'sms' => 'رسالة نصية',
+            );
+            $method_label = isset($method_labels[$contact_method]) ? $method_labels[$contact_method] : $contact_method;
+            $description = "[{$method_label}] " . $description;
+        }
+
+        $inserted = $wpdb->insert(
+            $wpdb->prefix . 'aq_follow_ups',
+            array(
+                'lead_id' => $lead_id,
+                'user_id' => $user_id,
+                'title' => sanitize_text_field($params['title']),
+                'description' => $description,
+                'due_date' => sanitize_text_field($params['due_date']),
+                'priority' => isset($params['priority']) ? sanitize_text_field($params['priority']) : 'medium',
+                'status' => 'pending',
+                'created_at' => current_time('mysql'),
+            )
+        );
+
+        if (!$inserted) {
+            return new WP_Error('db_error', 'Failed to create follow-up', array('status' => 500));
+        }
+
+        $follow_up_id = $wpdb->insert_id;
+
+        // Log the event
+        if (class_exists('AQOP_Event_Logger')) {
+            AQOP_Event_Logger::log(
+                'leads',
+                'follow_up_created',
+                'lead',
+                $lead_id,
+                array(
+                    'follow_up_id' => $follow_up_id,
+                    'title' => $params['title'],
+                    'due_date' => $params['due_date'],
+                    'contact_method' => $contact_method,
+                )
+            );
+        }
+
+        return rest_ensure_response(array(
+            'success' => true,
+            'data' => array(
+                'id' => $follow_up_id,
+                'lead_id' => $lead_id,
+                'lead_name' => $lead->name,
+                'title' => $params['title'],
+                'description' => $description,
+                'due_date' => $params['due_date'],
+                'contact_method' => $contact_method,
+                'priority' => isset($params['priority']) ? $params['priority'] : 'medium',
+                'status' => 'pending',
+            ),
+            'message' => 'Follow-up created successfully',
+        ));
     }
 
     /**

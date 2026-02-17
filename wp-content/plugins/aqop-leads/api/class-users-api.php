@@ -114,7 +114,7 @@ class AQOP_Leads_Users_API
 		$params = $request->get_params();
 
 		// AQOP roles
-		$aqop_roles = array('aq_agent', 'aq_supervisor', 'operation_manager', 'operation_admin', 'administrator');
+		$aqop_roles = array('aq_agent', 'aq_supervisor', 'aq_country_manager', 'operation_manager', 'operation_admin', 'administrator');
 
 		// Build query args
 		$args = array(
@@ -151,6 +151,12 @@ class AQOP_Leads_Users_API
 				}
 			}
 
+			// Get assigned countries (supports both old single and new multi format)
+			$country_ids = self::get_user_countries($user->ID);
+			$country_names = self::get_country_names($country_ids);
+
+			$can_see_unassigned = (bool) get_user_meta($user->ID, 'aq_can_see_unassigned_countries', true);
+
 			$users_data[] = array(
 				'id' => $user->ID,
 				'username' => $user->user_login,
@@ -158,6 +164,11 @@ class AQOP_Leads_Users_API
 				'display_name' => $user->display_name,
 				'role' => $aqop_role,
 				'registered' => $user->user_registered,
+				'country_id' => !empty($country_ids) ? $country_ids[0] : null, // backward compat
+				'country_ids' => $country_ids,
+				'country_name' => !empty($country_names) ? implode(', ', $country_names) : '',
+				'country_names' => $country_names,
+				'can_see_unassigned_countries' => $can_see_unassigned,
 			);
 		}
 
@@ -189,6 +200,10 @@ class AQOP_Leads_Users_API
 			);
 		}
 
+		$country_ids = self::get_user_countries($user->ID);
+		$country_names = self::get_country_names($country_ids);
+		$can_see_unassigned = (bool) get_user_meta($user->ID, 'aq_can_see_unassigned_countries', true);
+
 		return new WP_REST_Response(
 			array(
 				'success' => true,
@@ -199,6 +214,11 @@ class AQOP_Leads_Users_API
 					'display_name' => $user->display_name,
 					'role' => !empty($user->roles) ? $user->roles[0] : '',
 					'registered' => $user->user_registered,
+					'country_id' => !empty($country_ids) ? $country_ids[0] : null,
+					'country_ids' => $country_ids,
+					'country_name' => !empty($country_names) ? implode(', ', $country_names) : '',
+					'country_names' => $country_names,
+					'can_see_unassigned_countries' => $can_see_unassigned,
 				),
 			)
 		);
@@ -254,6 +274,24 @@ class AQOP_Leads_Users_API
 		$role = !empty($params['role']) ? sanitize_text_field($params['role']) : 'aq_agent';
 		$user->set_role($role);
 
+		// Save countries
+		if (!empty($params['country_ids']) && is_array($params['country_ids'])) {
+			$clean_ids = array_filter(array_map('absint', $params['country_ids']));
+			if (!empty($clean_ids)) {
+				update_user_meta($user_id, 'aq_assigned_countries', $clean_ids);
+				update_user_meta($user_id, 'aq_assigned_country', $clean_ids[0]);
+			}
+		} elseif (!empty($params['country_id'])) {
+			$cid = absint($params['country_id']);
+			update_user_meta($user_id, 'aq_assigned_country', $cid);
+			update_user_meta($user_id, 'aq_assigned_countries', array($cid));
+		}
+
+		// Save "can see unassigned countries" flag
+		if (isset($params['can_see_unassigned_countries'])) {
+			update_user_meta($user_id, 'aq_can_see_unassigned_countries', (bool) $params['can_see_unassigned_countries']);
+		}
+
 		// Get created user data
 		$created_user = get_userdata($user_id);
 
@@ -299,7 +337,16 @@ class AQOP_Leads_Users_API
 		$update_data = array('ID' => $user_id);
 
 		if (!empty($params['email'])) {
-			$update_data['user_email'] = sanitize_email($params['email']);
+			$clean_email = sanitize_email($params['email']);
+			if (!is_email($clean_email)) {
+				return new WP_Error('invalid_email', __('Invalid email address.', 'aqop-leads'), array('status' => 400));
+			}
+			// Check if email is taken by another user
+			$existing = email_exists($clean_email);
+			if ($existing && (int) $existing !== (int) $user_id) {
+				return new WP_Error('email_exists', __('This email is already in use.', 'aqop-leads'), array('status' => 400));
+			}
+			$update_data['user_email'] = $clean_email;
 		}
 
 		if (!empty($params['display_name'])) {
@@ -309,6 +356,8 @@ class AQOP_Leads_Users_API
 		if (!empty($params['password'])) {
 			$update_data['user_pass'] = $params['password'];
 		}
+
+		error_log('AQOP: Updating user ' . $user_id . ' with fields: ' . implode(', ', array_keys($update_data)));
 
 		// Update user
 		$updated = wp_update_user($update_data);
@@ -325,6 +374,34 @@ class AQOP_Leads_Users_API
 		if (!empty($params['role'])) {
 			$user_obj = new WP_User($user_id);
 			$user_obj->set_role(sanitize_text_field($params['role']));
+		}
+
+		// Update countries if provided (supports both single and multi)
+		if (isset($params['country_ids'])) {
+			// Multi-country support
+			delete_user_meta($user_id, 'aq_assigned_country');
+			delete_user_meta($user_id, 'aq_assigned_countries');
+			$ids = is_array($params['country_ids']) ? $params['country_ids'] : array();
+			$clean_ids = array_filter(array_map('absint', $ids));
+			if (!empty($clean_ids)) {
+				update_user_meta($user_id, 'aq_assigned_countries', $clean_ids);
+				// Keep backward compat: first country in old meta
+				update_user_meta($user_id, 'aq_assigned_country', $clean_ids[0]);
+			}
+		} elseif (isset($params['country_id'])) {
+			// Single country (backward compat)
+			delete_user_meta($user_id, 'aq_assigned_country');
+			delete_user_meta($user_id, 'aq_assigned_countries');
+			if (!empty($params['country_id'])) {
+				$cid = absint($params['country_id']);
+				update_user_meta($user_id, 'aq_assigned_country', $cid);
+				update_user_meta($user_id, 'aq_assigned_countries', array($cid));
+			}
+		}
+
+		// Update "can see unassigned countries" flag
+		if (isset($params['can_see_unassigned_countries'])) {
+			update_user_meta($user_id, 'aq_can_see_unassigned_countries', (bool) $params['can_see_unassigned_countries']);
 		}
 
 		// Get updated user data
@@ -463,9 +540,20 @@ class AQOP_Leads_Users_API
 			),
 			'role' => array(
 				'type' => 'string',
-				'enum' => array('aq_agent', 'aq_supervisor', 'operation_manager', 'operation_admin'),
+				'enum' => array('aq_agent', 'aq_supervisor', 'aq_country_manager', 'operation_manager', 'operation_admin'),
 				'sanitize_callback' => 'sanitize_text_field',
 				'default' => 'aq_agent',
+			),
+			'country_ids' => array(
+				'type' => 'array',
+				'items' => array('type' => 'integer'),
+			),
+			'country_id' => array(
+				'type' => array('integer', 'string'),
+				'sanitize_callback' => 'absint',
+			),
+			'can_see_unassigned_countries' => array(
+				'type' => 'boolean',
 			),
 		);
 	}
@@ -481,9 +569,7 @@ class AQOP_Leads_Users_API
 		return array(
 			'email' => array(
 				'type' => 'string',
-				'format' => 'email',
 				'sanitize_callback' => 'sanitize_email',
-				'validate_callback' => 'is_email',
 			),
 			'password' => array(
 				'type' => 'string',
@@ -494,10 +580,97 @@ class AQOP_Leads_Users_API
 			),
 			'role' => array(
 				'type' => 'string',
-				'enum' => array('aq_agent', 'aq_supervisor', 'operation_manager', 'operation_admin'),
 				'sanitize_callback' => 'sanitize_text_field',
 			),
+			'country_id' => array(
+				'type' => array('integer', 'string'),
+				'sanitize_callback' => 'absint',
+			),
+			'country_ids' => array(
+				'type' => 'array',
+				'items' => array('type' => 'integer'),
+			),
+			'can_see_unassigned_countries' => array(
+				'type' => 'boolean',
+			),
 		);
+	}
+
+	/**
+	 * Get user's assigned countries (supports old single + new multi format).
+	 * Also includes unassigned countries if user has that permission.
+	 */
+	public static function get_user_countries($user_id)
+	{
+		$assigned_countries = array();
+
+		// Try new multi format first
+		$countries = get_user_meta($user_id, 'aq_assigned_countries', true);
+		if (!empty($countries) && is_array($countries)) {
+			$assigned_countries = array_map('absint', $countries);
+		} else {
+			// Fallback to old single format
+			$single = get_user_meta($user_id, 'aq_assigned_country', true);
+			if (!empty($single)) {
+				$assigned_countries = array(absint($single));
+			}
+		}
+
+		// If user can see unassigned countries, add them
+		$can_see_unassigned = (bool) get_user_meta($user_id, 'aq_can_see_unassigned_countries', true);
+		if ($can_see_unassigned) {
+			global $wpdb;
+			
+			// Get all active countries
+			$all_countries = $wpdb->get_col(
+				"SELECT id FROM {$wpdb->prefix}aq_dim_countries WHERE is_active = 1"
+			);
+			$all_countries = array_map('absint', $all_countries);
+
+			// Get countries assigned to ANY user
+			$assigned_to_users = $wpdb->get_col(
+				"SELECT DISTINCT meta_value FROM {$wpdb->prefix}usermeta WHERE meta_key = 'aq_assigned_countries'"
+			);
+			
+			$assigned_ids = array();
+			foreach ($assigned_to_users as $meta_value) {
+				$countries_array = maybe_unserialize($meta_value);
+				if (is_array($countries_array)) {
+					$assigned_ids = array_merge($assigned_ids, array_map('absint', $countries_array));
+				}
+			}
+			$assigned_ids = array_unique($assigned_ids);
+
+			// Unassigned countries = all countries - assigned countries
+			$unassigned_countries = array_diff($all_countries, $assigned_ids);
+
+			// Merge user's assigned countries with unassigned countries
+			$assigned_countries = array_unique(array_merge($assigned_countries, $unassigned_countries));
+			sort($assigned_countries);
+		}
+
+		return $assigned_countries;
+	}
+
+	/**
+	 * Get country names from IDs.
+	 */
+	private static function get_country_names($country_ids)
+	{
+		if (empty($country_ids)) return array();
+
+		global $wpdb;
+		$placeholders = implode(',', array_fill(0, count($country_ids), '%d'));
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$names = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT country_name_en FROM {$wpdb->prefix}aq_dim_countries WHERE id IN ({$placeholders})",
+				$country_ids
+			)
+		);
+
+		return $names ?: array();
 	}
 }
 

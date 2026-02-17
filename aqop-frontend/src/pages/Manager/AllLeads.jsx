@@ -82,7 +82,15 @@ export default function AllLeads() {
   const fetchCountries = async () => {
     try {
       const countriesData = await getCountries();
-      setCountries(countriesData?.data || []);
+      let allCountries = countriesData?.data || [];
+
+      // Filter countries based on user's assigned countries
+      const userCountryIds = user?.country_ids;
+      if (userCountryIds && userCountryIds.length > 0) {
+        allCountries = allCountries.filter(c => userCountryIds.includes(parseInt(c.id)));
+      }
+
+      setCountries(allCountries);
     } catch (err) {
       console.error('Error fetching countries:', err);
     } finally {
@@ -404,18 +412,29 @@ export default function AllLeads() {
                 System-wide lead management - <span className="font-medium text-indigo-600">{user?.display_name}</span>
               </p>
             </div>
-            {canExport && (
-              <button
-                onClick={exportToCSV}
-                disabled={leads.length === 0}
-                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+            <div className="flex items-center gap-3">
+              <a
+                href="/add-lead"
+                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-sm text-sm font-medium hover:bg-blue-700 transition-colors"
               >
-                <svg className="w-5 h-5 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                 </svg>
-                Export CSV
-              </button>
-            )}
+                إضافة ليد
+              </a>
+              {canExport && (
+                <button
+                  onClick={exportToCSV}
+                  disabled={leads.length === 0}
+                  className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                >
+                  <svg className="w-5 h-5 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Export CSV
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Desktop Filters */}

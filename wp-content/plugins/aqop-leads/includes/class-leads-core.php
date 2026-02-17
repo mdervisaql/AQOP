@@ -306,6 +306,16 @@ class AQOP_Leads_Core
 		require_once AQOP_LEADS_PLUGIN_DIR . 'api/class-bulk-whatsapp-api.php';
 		$bulk_whatsapp_api = new AQOP_Bulk_WhatsApp_API();
 		$bulk_whatsapp_api->register_routes();
+
+		// Register FAQ API
+		require_once AQOP_LEADS_PLUGIN_DIR . 'api/class-faq-api.php';
+		$faq_api = new AQOP_FAQ_API();
+		$faq_api->register_routes();
+
+		// Register Targets API
+		require_once AQOP_LEADS_PLUGIN_DIR . 'api/class-targets-api.php';
+		$targets_api = new AQOP_Targets_API();
+		$targets_api->register_routes();
 	}
 
 	// === END REST API ===

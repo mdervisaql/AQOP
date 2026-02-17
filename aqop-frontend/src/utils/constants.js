@@ -14,6 +14,7 @@ export const ROLES = {
   ADMIN: 'administrator',
   OPERATION_ADMIN: 'operation_admin',
   OPERATION_MANAGER: 'operation_manager',
+  COUNTRY_MANAGER: 'aq_country_manager',
   SUPERVISOR: 'aq_supervisor',
   AGENT: 'aq_agent',
   DIGITAL_MARKETING: 'digital_marketing',

@@ -783,7 +783,122 @@ class AQOP_Leads_Installer
 			'group_id' => 'int UNSIGNED DEFAULT NULL AFTER campaign_id',
 			'platform' => 'varchar(50) DEFAULT NULL AFTER group_id',
 			'custom_data' => 'longtext DEFAULT NULL AFTER custom_fields',
+			'lost_reason' => 'text DEFAULT NULL AFTER notes',
+			'deal_stage' => "varchar(30) DEFAULT NULL AFTER lost_reason",
+			'learning_path_id' => 'int UNSIGNED DEFAULT NULL AFTER deal_stage',
 		);
+
+		// Create learning_paths table if not exists
+		$lp_table = $wpdb->prefix . 'aq_learning_paths';
+		if (!self::table_exists($lp_table)) {
+			$charset_collate = $wpdb->get_charset_collate();
+			require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+
+			$sql_learning_paths = "CREATE TABLE {$lp_table} (
+				id int UNSIGNED NOT NULL AUTO_INCREMENT,
+				name_en varchar(255) NOT NULL,
+				name_ar varchar(255) NOT NULL,
+				description text DEFAULT NULL,
+				is_active tinyint(1) NOT NULL DEFAULT 1,
+				display_order int UNSIGNED NOT NULL DEFAULT 0,
+				created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				PRIMARY KEY  (id),
+				KEY idx_active (is_active),
+				KEY idx_order (display_order)
+			) ENGINE=InnoDB {$charset_collate};";
+
+			dbDelta($sql_learning_paths);
+
+			// Insert default learning paths
+			$defaults = array(
+				array('Fluency (Quran)', 'الطلاقة (القرآن الكريم)', 1),
+				array('Languages', 'اللغات', 2),
+			);
+
+			foreach ($defaults as $path) {
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
+				$wpdb->insert(
+					$lp_table,
+					array(
+						'name_en' => $path[0],
+						'name_ar' => $path[1],
+						'display_order' => $path[2],
+						'is_active' => 1,
+					),
+					array('%s', '%s', '%d', '%d')
+				);
+			}
+
+			error_log('AQOP: Created learning_paths table with default data');
+		}
+
+		// Create FAQ table if not exists
+		$faq_table = $wpdb->prefix . 'aq_faq';
+		if (!self::table_exists($faq_table)) {
+			$charset_collate = $wpdb->get_charset_collate();
+			require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+
+			$sql_faq = "CREATE TABLE {$faq_table} (
+				id int UNSIGNED NOT NULL AUTO_INCREMENT,
+				country_id int UNSIGNED DEFAULT NULL,
+				category varchar(100) DEFAULT NULL,
+				question text NOT NULL,
+				answer text NOT NULL,
+				display_order int UNSIGNED NOT NULL DEFAULT 0,
+				is_active tinyint(1) NOT NULL DEFAULT 1,
+				created_by bigint(20) UNSIGNED DEFAULT NULL,
+				created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+				PRIMARY KEY  (id),
+				KEY idx_country (country_id),
+				KEY idx_active (is_active),
+				KEY idx_category (category),
+				KEY idx_order (display_order)
+			) ENGINE=InnoDB {$charset_collate};";
+
+			dbDelta($sql_faq);
+			error_log('AQOP: Created FAQ table');
+		}
+
+		// Conversion Targets table
+		$targets_table = $wpdb->prefix . 'aq_conversion_targets';
+		if (!self::table_exists($targets_table)) {
+			$charset_collate = $wpdb->get_charset_collate();
+			require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+
+			$sql_targets = "CREATE TABLE {$targets_table} (
+				id int UNSIGNED NOT NULL AUTO_INCREMENT,
+				country_id int UNSIGNED DEFAULT NULL COMMENT 'NULL = global targets',
+				lead_to_response_target decimal(5,2) NOT NULL DEFAULT 30.00,
+				response_to_qualified_target decimal(5,2) NOT NULL DEFAULT 25.00,
+				qualified_to_converted_target decimal(5,2) NOT NULL DEFAULT 40.00,
+				overall_target decimal(5,2) NOT NULL DEFAULT 5.00,
+				created_by bigint(20) UNSIGNED DEFAULT NULL,
+				created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+				PRIMARY KEY  (id),
+				UNIQUE KEY idx_country (country_id),
+				KEY idx_created_by (created_by)
+			) ENGINE=InnoDB {$charset_collate};";
+
+			dbDelta($sql_targets);
+			
+			// Insert default global targets
+			$wpdb->insert(
+				$targets_table,
+				array(
+					'country_id' => null,
+					'lead_to_response_target' => 30.00,
+					'response_to_qualified_target' => 25.00,
+					'qualified_to_converted_target' => 40.00,
+					'overall_target' => 5.00,
+					'created_by' => get_current_user_id(),
+				),
+				array('%d', '%f', '%f', '%f', '%f', '%d')
+			);
+			
+			error_log('AQOP: Created Conversion Targets table with default global targets');
+		}
 
 		foreach ($columns_to_add as $column_name => $column_def) {
 			// Check if column exists

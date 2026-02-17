@@ -53,7 +53,8 @@ export default function UserManagement() {
     password: '',
     display_name: '',
     role: 'aq_agent',
-    country_id: '',
+    country_ids: [],
+    can_see_unassigned_countries: false,
   });
   const [formErrors, setFormErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -130,7 +131,8 @@ export default function UserManagement() {
       password: '',
       display_name: '',
       role: 'aq_agent',
-      country_id: '',
+      country_ids: [],
+      can_see_unassigned_countries: false,
     });
     setFormErrors({});
     setShowModal(true);
@@ -145,7 +147,8 @@ export default function UserManagement() {
       password: '', // Don't pre-fill password
       display_name: user.display_name || '',
       role: user.role || 'aq_agent',
-      country_id: user.country_id || '',
+      country_ids: user.country_ids || (user.country_id ? [user.country_id] : []),
+      can_see_unassigned_countries: user.can_see_unassigned_countries || false,
     });
     setFormErrors({});
     setShowModal(true);
@@ -160,7 +163,8 @@ export default function UserManagement() {
       password: '',
       display_name: '',
       role: 'aq_agent',
-      country_id: '',
+      country_ids: [],
+      can_see_unassigned_countries: false,
     });
     setFormErrors({});
   };
@@ -207,10 +211,27 @@ export default function UserManagement() {
 
     try {
       if (modalMode === 'create') {
-        await createUser(formData);
+        const createData = {
+          ...formData,
+          country_ids: formData.country_ids.map(id => parseInt(id)),
+          can_see_unassigned_countries: formData.can_see_unassigned_countries,
+        };
+        await createUser(createData);
         alert('تم إنشاء المستخدم بنجاح!');
       } else {
-        await updateUser(editingUser.id, formData);
+        // Only send fields that should be updated (exclude username, strip empty password)
+        const updateData = {
+          email: formData.email,
+          display_name: formData.display_name,
+          role: formData.role,
+          country_ids: formData.country_ids.map(id => parseInt(id)),
+          can_see_unassigned_countries: formData.can_see_unassigned_countries,
+        };
+        // Only include password if user typed a new one
+        if (formData.password && formData.password.trim()) {
+          updateData.password = formData.password;
+        }
+        await updateUser(editingUser.id, updateData);
         alert('تم تحديث المستخدم بنجاح!');
       }
 
@@ -434,8 +455,16 @@ export default function UserManagement() {
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {user.registered ? new Date(user.registered).toLocaleDateString('en-GB') : 'N/A'}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {user.country_name ? (
+                          <td className="px-6 py-4 text-sm text-gray-500">
+                            {user.country_names && user.country_names.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {user.country_names.map((name, idx) => (
+                                  <span key={idx} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                    {name}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : user.country_name ? (
                               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                                 {user.country_name}
                               </span>
@@ -581,27 +610,77 @@ export default function UserManagement() {
                       </select>
                     </div>
 
-                    {/* Country Selection */}
+                    {/* Country Selection - Multi Select */}
                     <div>
-                      <label htmlFor="country_id" className="block text-sm font-medium text-gray-700 mb-1">
-                        الدولة المعينة
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        الدول المعينة
                       </label>
-                      <select
-                        id="country_id"
-                        value={formData.country_id}
-                        onChange={(e) => setFormData({ ...formData, country_id: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                        disabled={loadingCountries}
-                      >
-                        <option value="">لا يوجد (وصول عالمي)</option>
-                        {countries.map((country) => (
-                          <option key={country.id} value={country.id}>
-                            {country.country_name_en}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="border border-gray-300 rounded-lg max-h-40 overflow-y-auto p-2 bg-white">
+                        {loadingCountries ? (
+                          <p className="text-sm text-gray-400 p-2">جاري التحميل...</p>
+                        ) : countries.length === 0 ? (
+                          <p className="text-sm text-gray-400 p-2">لا توجد دول</p>
+                        ) : (
+                          countries.map((country) => (
+                            <label
+                              key={country.id}
+                              className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50 cursor-pointer"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={formData.country_ids.includes(country.id) || formData.country_ids.includes(String(country.id))}
+                                onChange={(e) => {
+                                  const id = country.id;
+                                  if (e.target.checked) {
+                                    setFormData({ ...formData, country_ids: [...formData.country_ids, id] });
+                                  } else {
+                                    setFormData({ ...formData, country_ids: formData.country_ids.filter(c => c != id) });
+                                  }
+                                }}
+                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              />
+                              <span className="text-sm text-gray-700">{country.country_name_ar || country.country_name_en}</span>
+                            </label>
+                          ))
+                        )}
+                      </div>
+                      {formData.country_ids.length > 0 && (
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          {formData.country_ids.map(id => {
+                            const c = countries.find(c => c.id == id);
+                            return c ? (
+                              <span key={id} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                {c.country_name_ar || c.country_name_en}
+                                <button
+                                  type="button"
+                                  onClick={() => setFormData({ ...formData, country_ids: formData.country_ids.filter(cid => cid != id) })}
+                                  className="text-blue-600 hover:text-blue-800"
+                                >
+                                  &times;
+                                </button>
+                              </span>
+                            ) : null;
+                          })}
+                        </div>
+                      )}
+                      
+                      {/* Can see unassigned countries option */}
+                      <div className="mt-3 pt-3 border-t border-gray-200">
+                        <label className="flex items-start gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={formData.can_see_unassigned_countries}
+                            onChange={(e) => setFormData({ ...formData, can_see_unassigned_countries: e.target.checked })}
+                            className="mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <div>
+                            <span className="text-sm font-medium text-gray-700">يمكنه رؤية الدول غير المسندة</span>
+                            <p className="text-xs text-gray-500 mt-0.5">سيتمكن من رؤية الدول التي لم يُسند لها أي مسؤول</p>
+                          </div>
+                        </label>
+                      </div>
                       <p className="mt-1 text-xs text-gray-500">
-                        تعيين دولة يقيد الصلاحيات لمديري الدول فقط.
+                        {formData.country_ids.length === 0 ? 'لا يوجد دولة محددة (وصول عالمي)' : `${formData.country_ids.length} دولة محددة`} — تعيين دولة يقيد الصلاحيات لمديري الدول.
                       </p>
                     </div>
 

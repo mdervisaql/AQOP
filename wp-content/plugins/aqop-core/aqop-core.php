@@ -50,8 +50,9 @@ function aqop_core_api_init()
 	$monitoring_api = new AQOP_Monitoring_API();
 	add_action('rest_api_init', array($monitoring_api, 'register_routes'));
 
-	$users_api = new AQOP_Users_API();
-	add_action('rest_api_init', array($users_api, 'register_routes'));
+	// Users API is now handled by aqop-leads plugin (which supports multi-country, role management, etc.)
+	// $users_api = new AQOP_Users_API();
+	// add_action('rest_api_init', array($users_api, 'register_routes'));
 	// Frontend Integration.
 	AQOP_Frontend_Integration::init();
 }

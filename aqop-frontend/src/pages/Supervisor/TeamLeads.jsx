@@ -7,7 +7,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../auth/AuthContext';
-import { getLeads, updateLead } from '../../api/leads';
+import { getLeads, updateLead, getCountries } from '../../api/leads';
 import { getAgents } from '../../api/users';
 import Navigation from '../../components/Navigation';
 import LeadCard from '../../components/LeadCard';
@@ -21,12 +21,15 @@ export default function TeamLeads() {
   const [error, setError] = useState(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
+  const [countries, setCountries] = useState([]);
+
   // Filters
   const [filters, setFilters] = useState({
     status: '',
     priority: '',
     search: '',
     assigned_to: '',
+    country: '',
   });
 
   // Bulk actions
@@ -36,8 +39,29 @@ export default function TeamLeads() {
   const [processingBulk, setProcessingBulk] = useState(false);
 
   useEffect(() => {
+    fetchCountries();
+  }, []);
+
+  useEffect(() => {
     fetchData();
   }, [filters]);
+
+  const fetchCountries = async () => {
+    try {
+      const countriesData = await getCountries();
+      let allCountries = countriesData?.data || [];
+
+      // Filter countries based on user's assigned countries
+      const userCountryIds = user?.country_ids;
+      if (userCountryIds && userCountryIds.length > 0) {
+        allCountries = allCountries.filter(c => userCountryIds.includes(parseInt(c.id)));
+      }
+
+      setCountries(allCountries);
+    } catch (err) {
+      console.error('Error fetching countries:', err);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -49,6 +73,7 @@ export default function TeamLeads() {
       if (filters.priority) params.priority = filters.priority;
       if (filters.search) params.search = filters.search;
       if (filters.assigned_to) params.assigned_to = filters.assigned_to;
+      if (filters.country) params.country = filters.country;
 
       const response = await getLeads(params);
 
@@ -81,10 +106,11 @@ export default function TeamLeads() {
       priority: '',
       search: '',
       assigned_to: '',
+      country: '',
     });
   };
 
-  const hasActiveFilters = filters.status || filters.priority || filters.search || filters.assigned_to;
+  const hasActiveFilters = filters.status || filters.priority || filters.search || filters.assigned_to || filters.country;
 
   const toggleSelectLead = (leadId) => {
     setSelectedLeads(prev => {
@@ -198,6 +224,22 @@ export default function TeamLeads() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
+                <label className="text-xs text-gray-500 mb-1 block">الدولة</label>
+                <select
+                  value={filters.country}
+                  onChange={(e) => handleFilterChange('country', e.target.value)}
+                  className="w-full h-10 px-3 bg-gray-50 border border-gray-200 rounded-lg text-sm"
+                >
+                  <option value="">كل الدول</option>
+                  {countries.map(country => (
+                    <option key={country.id} value={country.id}>
+                      {country.country_name_ar || country.country_name_en}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
                 <label className="text-xs text-gray-500 mb-1 block">الحالة</label>
                 <select
                   value={filters.status}
@@ -228,7 +270,7 @@ export default function TeamLeads() {
                 </select>
               </div>
 
-              <div className="col-span-2">
+              <div>
                 <label className="text-xs text-gray-500 mb-1 block">الوكيل</label>
                 <select
                   value={filters.assigned_to}
@@ -274,7 +316,7 @@ export default function TeamLeads() {
 
           {/* Desktop Filters */}
           <div className="hidden lg:block bg-white rounded-lg shadow p-6 mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
                 <input
@@ -284,6 +326,21 @@ export default function TeamLeads() {
                   placeholder="Search leads..."
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+                <select
+                  value={filters.country}
+                  onChange={(e) => handleFilterChange('country', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">All Countries</option>
+                  {countries.map(country => (
+                    <option key={country.id} value={country.id}>
+                      {country.country_name_en}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>

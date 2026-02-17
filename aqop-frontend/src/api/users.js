@@ -76,7 +76,7 @@ export const createUser = async (userData) => {
  * @returns {Promise} API response
  */
 export const updateUser = async (userId, userData) => {
-  return await apiClient.post(`/aqop/v1/users/${userId}`, userData);
+  return await apiClient.put(`/aqop/v1/users/${userId}`, userData);
 };
 
 /**

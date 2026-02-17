@@ -146,7 +146,7 @@ class AQOP_Leads_Manager
 			$update_data = array();
 			$update_format = array();
 
-			$allowed_fields = array('name', 'email', 'phone', 'whatsapp', 'country_id', 'source_id', 'campaign_id', 'status_id', 'assigned_to', 'priority', 'notes', 'custom_fields');
+			$allowed_fields = array('name', 'email', 'phone', 'whatsapp', 'country_id', 'source_id', 'campaign_id', 'status_id', 'assigned_to', 'priority', 'notes', 'lost_reason', 'deal_stage', 'learning_path_id', 'custom_fields');
 
 			foreach ($allowed_fields as $field) {
 				if (isset($data[$field])) {
@@ -758,7 +758,13 @@ class AQOP_Leads_Manager
 			$where_values[] = absint($args['status']);
 		}
 
-		if ($args['country']) {
+		if (!empty($args['countries']) && is_array($args['countries'])) {
+			$placeholders = implode(',', array_fill(0, count($args['countries']), '%d'));
+			$where_clauses[] = "l.country_id IN ({$placeholders})";
+			foreach ($args['countries'] as $cid) {
+				$where_values[] = absint($cid);
+			}
+		} elseif ($args['country']) {
 			$where_clauses[] = 'l.country_id = %d';
 			$where_values[] = absint($args['country']);
 		}

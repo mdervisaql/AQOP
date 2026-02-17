@@ -14,6 +14,7 @@ const ROLE_HIERARCHY = {
   [ROLES.ADMIN]: 100,                    // administrator - Full access
   [ROLES.OPERATION_ADMIN]: 90,           // operation_admin - Full access
   [ROLES.OPERATION_MANAGER]: 80,         // operation_manager - Manager + Supervisor + Agent
+  [ROLES.COUNTRY_MANAGER]: 70,           // aq_country_manager - Country Manager (like manager but for specific countries)
   [ROLES.SUPERVISOR]: 50,                 // aq_supervisor - Supervisor + Agent
   [ROLES.AGENT]: 10,                      // aq_agent - Agent only
 };
@@ -82,7 +83,7 @@ export const getDefaultRoute = (user) => {
   
   const roleLevel = getRoleLevel(user);
   
-  if (roleLevel >= ROLE_HIERARCHY[ROLES.OPERATION_MANAGER]) {
+  if (roleLevel >= ROLE_HIERARCHY[ROLES.COUNTRY_MANAGER]) {
     return '/manager/all-leads';
   } else if (roleLevel >= ROLE_HIERARCHY[ROLES.SUPERVISOR]) {
     return '/supervisor/team-leads';
@@ -116,6 +117,7 @@ export const getRoleDisplayName = (role) => {
     [ROLES.ADMIN]: 'Administrator',
     [ROLES.OPERATION_ADMIN]: 'Operation Admin',
     [ROLES.OPERATION_MANAGER]: 'Operation Manager',
+    [ROLES.COUNTRY_MANAGER]: 'Country Manager',
     [ROLES.SUPERVISOR]: 'Supervisor',
     [ROLES.AGENT]: 'Agent',
   };

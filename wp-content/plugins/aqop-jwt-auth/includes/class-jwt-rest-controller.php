@@ -45,6 +45,7 @@ class AQOP_JWT_REST_Controller
 		'administrator',
 		'operation_admin',
 		'operation_manager',
+		'aq_country_manager',
 		'aq_supervisor',
 		'aq_agent',
 	);
@@ -356,6 +357,7 @@ class AQOP_JWT_REST_Controller
 				'administrator',
 				'operation_admin',
 				'operation_manager',
+				'aq_country_manager',
 				'aq_supervisor',
 				'aq_agent',
 			);
@@ -376,6 +378,18 @@ class AQOP_JWT_REST_Controller
 		$roles = $user->roles;
 		$primary_role = !empty($roles) ? $roles[0] : 'subscriber';
 
+		// Get assigned countries
+		$country_ids = array();
+		$countries_meta = get_user_meta($user->ID, 'aq_assigned_countries', true);
+		if (!empty($countries_meta) && is_array($countries_meta)) {
+			$country_ids = array_map('absint', $countries_meta);
+		} else {
+			$single = get_user_meta($user->ID, 'aq_assigned_country', true);
+			if (!empty($single)) {
+				$country_ids = array(absint($single));
+			}
+		}
+
 		return array(
 			'id' => $user->ID,
 			'username' => $user->user_login,
@@ -383,6 +397,7 @@ class AQOP_JWT_REST_Controller
 			'display_name' => $user->display_name,
 			'role' => $primary_role,
 			'capabilities' => array_keys($user->allcaps),
+			'country_ids' => $country_ids,
 		);
 	}
 }

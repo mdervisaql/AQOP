@@ -7,7 +7,9 @@
 
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { useQuery } from '@tanstack/react-query';
 import { useLeads, useLeadsStats } from '../hooks/useLeads';
+import { getFunnelStats } from '../api/leads';
 import { hasAnyRole } from '../utils/helpers';
 import { ROLES } from '../utils/constants';
 import Navigation from '../components/Navigation';
@@ -15,6 +17,9 @@ import LeadCard from '../components/LeadCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import NotificationBell from '../components/NotificationBell';
 import FollowUpWidget from '../components/FollowUpWidget';
+import FunnelChart from '../components/FunnelChart';
+import FunnelStats from '../components/FunnelStats';
+import FunnelAlerts from '../components/FunnelAlerts';
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -22,7 +27,8 @@ export default function DashboardPage() {
 
   const isAgent = hasAnyRole(user, [ROLES.AGENT]);
   const isSupervisor = hasAnyRole(user, [ROLES.SUPERVISOR]);
-  const isManager = hasAnyRole(user, [ROLES.ADMIN, ROLES.OPERATION_ADMIN, ROLES.OPERATION_MANAGER]);
+  const isCountryManager = hasAnyRole(user, [ROLES.COUNTRY_MANAGER]);
+  const isManager = hasAnyRole(user, [ROLES.ADMIN, ROLES.OPERATION_ADMIN, ROLES.OPERATION_MANAGER, ROLES.COUNTRY_MANAGER]);
   const isAdminOrManager = isManager || isSupervisor;
 
   // Fetch Statistics
@@ -30,6 +36,15 @@ export default function DashboardPage() {
     refetchInterval: 30000,
   });
   const stats = statsResponse?.data;
+
+  // Fetch Funnel Statistics
+  const { data: funnelResponse, isLoading: funnelLoading } = useQuery({
+    queryKey: ['funnelStats'],
+    queryFn: getFunnelStats,
+    refetchInterval: 60000,
+    enabled: isAdminOrManager, // Only fetch for managers
+  });
+  const funnelData = funnelResponse?.data;
 
   // Fetch Recent Leads
   const { data: leadsResponse, isLoading: leadsLoading } = useLeads(
@@ -142,6 +157,24 @@ export default function DashboardPage() {
             </button>
           </div>
         </div>
+
+        {/* Mobile Funnel Reality Section */}
+        {isAdminOrManager && funnelData && (
+          <div className="lg:hidden px-4 mt-6">
+            <div className="bg-white rounded-xl p-4 shadow-sm mb-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-gray-900">Funnel Reality</h3>
+                <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-bold rounded">LIVE</span>
+              </div>
+              <FunnelChart data={funnelData} />
+            </div>
+
+            {/* Mobile Alerts */}
+            <div className="bg-white rounded-xl p-4 shadow-sm mb-4">
+              <FunnelAlerts data={funnelData} />
+            </div>
+          </div>
+        )}
 
         {/* Mobile Recent Leads */}
         <div className="lg:hidden px-4 mt-6">
@@ -306,6 +339,39 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 </div>
+
+                {/* Funnel Reality Section (Managers Only) */}
+                {isAdminOrManager && funnelData && (
+                  <div className="mb-8">
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
+                      <div className="flex items-center justify-between mb-6">
+                        <div>
+                          <h3 className="text-xl font-bold text-gray-900">Funnel Reality</h3>
+                          <p className="text-sm text-gray-500 mt-1">معدلات التحويل في مسار المبيعات</p>
+                        </div>
+                        <div className="px-3 py-1.5 bg-blue-100 text-blue-700 text-xs font-bold rounded-full">
+                          LIVE
+                        </div>
+                      </div>
+
+                      {/* Funnel Visualization */}
+                      <FunnelChart data={funnelData} />
+                    </div>
+
+                    {/* Grid: Stats Calculator + Alerts */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                      {/* Conversion Calculator */}
+                      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <FunnelStats data={funnelData} />
+                      </div>
+
+                      {/* Alerts */}
+                      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <FunnelAlerts data={funnelData} />
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                   {/* Recent Leads Section */}

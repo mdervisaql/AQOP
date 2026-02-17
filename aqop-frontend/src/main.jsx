@@ -31,9 +31,13 @@ const LeadForm = lazy(() => import('./pages/Public/LeadForm'));
 const NotificationsPage = lazy(() => import('./pages/NotificationsPage'));
 const NotificationSettingsPage = lazy(() => import('./pages/NotificationSettingsPage'));
 
+const AddLead = lazy(() => import('./pages/Manager/AddLead'));
 const FollowUpsPage = lazy(() => import('./pages/FollowUpsPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 const FacebookLeadsSettings = lazy(() => import('./pages/Settings/FacebookLeadsSettings'));
+const LearningPathSettings = lazy(() => import('./pages/Settings/LearningPathSettings'));
+const FAQSettings = lazy(() => import('./pages/Settings/FAQSettings'));
+const ConversionTargetsSettings = lazy(() => import('./pages/Settings/ConversionTargetsSettings'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -117,6 +121,14 @@ createRoot(document.getElementById('root')).render(
                     }
                   />
                   <Route
+                    path="/add-lead"
+                    element={
+                      <ProtectedRoute requiredRole={ROLES.AGENT}>
+                        <AddLead />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
                     path="/leads/:id"
                     element={
                       <ProtectedRoute requiredRole={ROLES.AGENT}>
@@ -129,7 +141,7 @@ createRoot(document.getElementById('root')).render(
                   <Route
                     path="/manager/all-leads"
                     element={
-                      <ProtectedRoute requiredRole={ROLES.OPERATION_MANAGER}>
+                      <ProtectedRoute requiredRole={ROLES.COUNTRY_MANAGER}>
                         <AllLeads />
                       </ProtectedRoute>
                     }
@@ -137,7 +149,7 @@ createRoot(document.getElementById('root')).render(
                   <Route
                     path="/manager/analytics"
                     element={
-                      <ProtectedRoute requiredRole={ROLES.OPERATION_MANAGER}>
+                      <ProtectedRoute requiredRole={ROLES.COUNTRY_MANAGER}>
                         <Analytics />
                       </ProtectedRoute>
                     }
@@ -153,7 +165,7 @@ createRoot(document.getElementById('root')).render(
                   <Route
                     path="/manager/bulk-whatsapp"
                     element={
-                      <ProtectedRoute requiredRole={ROLES.OPERATION_MANAGER}>
+                      <ProtectedRoute requiredRole={ROLES.COUNTRY_MANAGER}>
                         <BulkWhatsAppJobs />
                       </ProtectedRoute>
                     }
@@ -161,7 +173,7 @@ createRoot(document.getElementById('root')).render(
                   <Route
                     path="/manager/reports"
                     element={
-                      <ProtectedRoute requiredRole={ROLES.OPERATION_MANAGER}>
+                      <ProtectedRoute requiredRole={ROLES.COUNTRY_MANAGER}>
                         <ReportsDashboard />
                       </ProtectedRoute>
                     }
@@ -191,6 +203,36 @@ createRoot(document.getElementById('root')).render(
                     element={
                       <ProtectedRoute>
                         <NotificationSettingsPage />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  {/* Settings - Learning Paths */}
+                  <Route
+                    path="/settings/learning-paths"
+                    element={
+                      <ProtectedRoute requiredRole={ROLES.OPERATION_ADMIN}>
+                        <LearningPathSettings />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  {/* Settings - FAQ */}
+                  <Route
+                    path="/settings/faq"
+                    element={
+                      <ProtectedRoute requiredRole={ROLES.AGENT}>
+                        <FAQSettings />
+                      </ProtectedRoute>
+                    }
+                  />
+
+                  {/* Conversion Targets Settings */}
+                  <Route
+                    path="/settings/conversion-targets"
+                    element={
+                      <ProtectedRoute requiredRole={ROLES.COUNTRY_MANAGER}>
+                        <ConversionTargetsSettings />
                       </ProtectedRoute>
                     }
                   />

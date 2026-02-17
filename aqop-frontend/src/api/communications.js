@@ -92,3 +92,25 @@ export const completeFollowUp = async (id) => {
         throw error;
     }
 };
+
+/**
+ * Create a standalone follow-up (next step)
+ * 
+ * @param {Object} data - Follow-up data
+ * @param {number} data.lead_id - Lead ID
+ * @param {string} data.title - Next step title/description
+ * @param {string} data.description - Detailed description
+ * @param {string} data.due_date - Date and time (YYYY-MM-DD HH:mm:ss)
+ * @param {string} data.contact_method - Communication method (call, whatsapp, email, meeting, sms)
+ * @param {string} data.priority - Priority (low, medium, high)
+ * @returns {Promise} API response
+ */
+export const createFollowUp = async (data) => {
+    try {
+        const response = await api.post(`${BASE_URL}/follow-ups`, data);
+        return response.data;
+    } catch (error) {
+        console.error('Error creating follow-up:', error);
+        throw error;
+    }
+};

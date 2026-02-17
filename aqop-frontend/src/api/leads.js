@@ -78,10 +78,18 @@ export const updateLead = async (leadId, leadData) => {
  * 
  * @param {number} leadId - Lead ID
  * @param {string} statusCode - Status code (pending, contacted, qualified, converted, lost)
+ * @param {Object} extras - Optional extra fields: { lostReason, dealStage }
  * @returns {Promise} API response
  */
-export const updateLeadStatus = async (leadId, statusCode) => {
-  return await updateLead(leadId, { status_code: statusCode });
+export const updateLeadStatus = async (leadId, statusCode, extras = {}) => {
+  const data = { status_code: statusCode };
+  if (statusCode === 'lost' && extras.lostReason) {
+    data.lost_reason = extras.lostReason;
+  }
+  if (statusCode === 'qualified' && extras.dealStage) {
+    data.deal_stage = extras.dealStage;
+  }
+  return await updateLead(leadId, data);
 };
 
 /**
@@ -155,6 +163,15 @@ export const getLeadsStats = async () => {
 };
 
 /**
+ * Get funnel statistics with conversion rates
+ * 
+ * @returns {Promise} API response
+ */
+export const getFunnelStats = async () => {
+  return await apiClient.get('/aqop/v1/leads/funnel-stats');
+};
+
+/**
  * Recalculate lead score
  * 
  * @param {number} leadId - Lead ID
@@ -181,6 +198,36 @@ export const getLeadScoreHistory = async (leadId) => {
  */
 export const getCountries = async () => {
   return await apiClient.get(LEADS_ENDPOINTS.COUNTRIES);
+};
+
+/**
+ * Get learning paths
+ * 
+ * @returns {Promise} API response
+ */
+export const getLearningPaths = async () => {
+  return await apiClient.get('/aqop/v1/leads/learning-paths');
+};
+
+/**
+ * Create learning path (admin only)
+ */
+export const createLearningPath = async (data) => {
+  return await apiClient.post('/aqop/v1/leads/learning-paths', data);
+};
+
+/**
+ * Update learning path (admin only)
+ */
+export const updateLearningPath = async (id, data) => {
+  return await apiClient.put(`/aqop/v1/leads/learning-paths/${id}`, data);
+};
+
+/**
+ * Delete learning path (admin only)
+ */
+export const deleteLearningPath = async (id) => {
+  return await apiClient.delete(`/aqop/v1/leads/learning-paths/${id}`);
 };
 
 /**

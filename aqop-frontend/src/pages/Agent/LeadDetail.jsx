@@ -6,7 +6,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { getLead, updateLeadStatus, addLeadNote, getLeadNotes, getLeadEvents, uploadLeadFile, recalculateLeadScore, getLeadScoreHistory } from '../../api/leads';
+import { getLead, updateLeadStatus, updateLead, addLeadNote, getLeadNotes, getLeadEvents, uploadLeadFile, recalculateLeadScore, getLeadScoreHistory, getLearningPaths } from '../../api/leads';
 import { getStatusColor, getPriorityColor } from '../../api/leads';
 import { formatDateTime } from '../../utils/helpers';
 import { useAuth } from '../../auth/AuthContext';
@@ -16,6 +16,8 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import CommunicationLog from '../../components/CommunicationLog';
 import WhatsAppChat from '../../components/WhatsAppChat';
 import LeadScore from '../../components/LeadScore';
+import FAQPanel from '../../components/FAQPanel';
+import { createFollowUp } from '../../api/communications';
 
 export default function LeadDetail() {
   const { id } = useParams();
@@ -34,7 +36,23 @@ export default function LeadDetail() {
 
   const [selectedStatus, setSelectedStatus] = useState('');
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [lostReason, setLostReason] = useState('');
+  const [dealStage, setDealStage] = useState('');
+  const [nextStep, setNextStep] = useState({
+    title: '',
+    description: '',
+    dueDate: '',
+    dueTime: '',
+    contactMethod: '',
+    priority: 'medium',
+  });
+  const [creatingFollowUp, setCreatingFollowUp] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
+
+  // Learning Path
+  const [learningPaths, setLearningPaths] = useState([]);
+  const [selectedLearningPath, setSelectedLearningPath] = useState('');
+  const [savingLearningPath, setSavingLearningPath] = useState(false);
 
   const [scoreHistory, setScoreHistory] = useState([]);
   const [recalculatingScore, setRecalculatingScore] = useState(false);
@@ -54,6 +72,19 @@ export default function LeadDetail() {
       if (leadResponse.success && leadResponse.data) {
         setLead(leadResponse.data);
         setSelectedStatus(leadResponse.data.status_code);
+        setLostReason(leadResponse.data.lost_reason || '');
+        setDealStage(leadResponse.data.deal_stage || '');
+        setSelectedLearningPath(leadResponse.data.learning_path_id || '');
+
+        // Fetch learning paths
+        try {
+          const lpResponse = await getLearningPaths();
+          if (lpResponse.success && lpResponse.data) {
+            setLearningPaths(lpResponse.data || []);
+          }
+        } catch (err) {
+          console.error('Error fetching learning paths:', err);
+        }
 
         // Fetch notes
         try {
@@ -119,21 +150,76 @@ export default function LeadDetail() {
     }
   };
 
+  const needsNextStep = (status) => ['contacted', 'qualified'].includes(status);
+
   const handleStatusChange = async () => {
     if (!selectedStatus || selectedStatus === lead.status_code) return;
+
+    // Require lost_reason when changing to "lost"
+    if (selectedStatus === 'lost' && !lostReason.trim()) {
+      alert('يرجى كتابة سبب الخسارة قبل تحديث الحالة');
+      return;
+    }
+
+    // Require deal_stage when changing to "qualified"
+    if (selectedStatus === 'qualified' && !dealStage) {
+      alert('يرجى اختيار مرحلة الصفقة قبل تحديث الحالة');
+      return;
+    }
+
+    // Require next step for contacted/qualified
+    if (needsNextStep(selectedStatus)) {
+      if (!nextStep.title.trim()) {
+        alert('يرجى كتابة الخطوة القادمة');
+        return;
+      }
+      if (!nextStep.dueDate) {
+        alert('يرجى تحديد تاريخ الخطوة القادمة');
+        return;
+      }
+      if (!nextStep.contactMethod) {
+        alert('يرجى اختيار وسيلة التواصل');
+        return;
+      }
+    }
 
     setUpdatingStatus(true);
 
     try {
-      await updateLeadStatus(id, selectedStatus);
+      // 1. Update status
+      await updateLeadStatus(id, selectedStatus, {
+        lostReason: selectedStatus === 'lost' ? lostReason.trim() : null,
+        dealStage: selectedStatus === 'qualified' ? dealStage : null,
+      });
 
-      // Refresh lead data
+      // 2. Create follow-up if needed
+      if (needsNextStep(selectedStatus) && nextStep.title.trim() && nextStep.dueDate) {
+        const dueDateTime = nextStep.dueTime
+          ? `${nextStep.dueDate} ${nextStep.dueTime}:00`
+          : `${nextStep.dueDate} 09:00:00`;
+
+        await createFollowUp({
+          lead_id: parseInt(id),
+          title: nextStep.title.trim(),
+          description: nextStep.description.trim(),
+          due_date: dueDateTime,
+          contact_method: nextStep.contactMethod,
+          priority: nextStep.priority,
+        });
+      }
+
+      // 3. Refresh lead data
       const leadResponse = await getLead(id);
       if (leadResponse.success && leadResponse.data) {
         setLead(leadResponse.data);
+        setLostReason(leadResponse.data.lost_reason || '');
+        setDealStage(leadResponse.data.deal_stage || '');
       }
 
-      alert('Status updated successfully!');
+      // 4. Reset next step form
+      setNextStep({ title: '', description: '', dueDate: '', dueTime: '', contactMethod: '', priority: 'medium' });
+
+      alert('تم تحديث الحالة وجدولة المتابعة بنجاح!');
     } catch (err) {
       console.error('Error updating status:', err);
       alert('Failed to update status. Please try again.');
@@ -439,6 +525,56 @@ export default function LeadDetail() {
                       )}
                     </dl>
 
+                    {lead.learning_path_id && learningPaths.length > 0 && (
+                      <div className="mt-4 pt-4 border-t border-purple-200 bg-purple-50 -mx-6 px-6 pb-4">
+                        <dt className="text-sm font-medium text-purple-700 mb-1 flex items-center gap-1.5">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                          </svg>
+                          المسار التعليمي
+                        </dt>
+                        <dd className="text-purple-800 font-medium" dir="auto">
+                          {(() => {
+                            const path = learningPaths.find(p => p.id == lead.learning_path_id);
+                            return path ? `${path.name_ar} / ${path.name_en}` : `Path #${lead.learning_path_id}`;
+                          })()}
+                        </dd>
+                      </div>
+                    )}
+
+                    {lead.deal_stage && lead.status_code === 'qualified' && (
+                      <div className="mt-4 pt-4 border-t border-orange-200 bg-orange-50 -mx-6 -mb-6 px-6 pb-6 rounded-b-lg">
+                        <dt className="text-sm font-medium text-orange-700 mb-2 flex items-center gap-1.5">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          مرحلة الصفقة (Deal Stage)
+                        </dt>
+                        <dd className="text-orange-800 font-medium" dir="auto">
+                          {({
+                            discovery: 'تشخيص احتياج / Discovery',
+                            offer_sent: 'عرض مُرسل / Offer Sent',
+                            negotiation: 'تفاوض / Negotiation',
+                            commit: 'موافقة نهائية (جاهز للدفع) / Commit',
+                            closed_won: 'مشتري / Closed Won',
+                            closed_lost: 'خسرنا الصفقة / Closed Lost',
+                          })[lead.deal_stage] || lead.deal_stage}
+                        </dd>
+                      </div>
+                    )}
+
+                    {lead.lost_reason && lead.status_code === 'lost' && (
+                      <div className="mt-4 pt-4 border-t border-red-200 bg-red-50 -mx-6 -mb-6 px-6 pb-6 rounded-b-lg">
+                        <dt className="text-sm font-medium text-red-700 mb-2 flex items-center gap-1.5">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                          </svg>
+                          سبب الخسارة (Lost Reason)
+                        </dt>
+                        <dd className="text-red-800 whitespace-pre-wrap" dir="auto">{lead.lost_reason}</dd>
+                      </div>
+                    )}
+
                     {lead.notes && (
                       <div className="mt-4 pt-4 border-t border-gray-200">
                         <dt className="text-sm font-medium text-gray-500 mb-2">Initial Notes</dt>
@@ -646,7 +782,19 @@ export default function LeadDetail() {
                 <div className="space-y-4">
                   <select
                     value={selectedStatus}
-                    onChange={(e) => setSelectedStatus(e.target.value)}
+                    onChange={(e) => {
+                      setSelectedStatus(e.target.value);
+                      // Clear conditional fields when switching statuses
+                      if (e.target.value !== 'lost') {
+                        setLostReason('');
+                      }
+                      if (e.target.value !== 'qualified') {
+                        setDealStage('');
+                      }
+                      if (!needsNextStep(e.target.value)) {
+                        setNextStep({ title: '', description: '', dueDate: '', dueTime: '', contactMethod: '', priority: 'medium' });
+                      }
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     disabled={updatingStatus}
                   >
@@ -656,14 +804,298 @@ export default function LeadDetail() {
                     <option value="converted">Converted</option>
                     <option value="lost">Lost</option>
                   </select>
+
+                  {/* Deal Stage - appears when "Qualified" is selected */}
+                  {selectedStatus === 'qualified' && (
+                    <div className="animate-in fade-in slide-in-from-top-2 duration-200">
+                      <label className="block text-sm font-medium text-orange-700 mb-1.5">
+                        مرحلة الصفقة <span className="text-orange-500">*</span>
+                      </label>
+                      <select
+                        value={dealStage}
+                        onChange={(e) => setDealStage(e.target.value)}
+                        className="w-full px-3 py-2 border border-orange-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-orange-50 text-sm"
+                        disabled={updatingStatus}
+                        dir="auto"
+                      >
+                        <option value="">-- اختر مرحلة الصفقة --</option>
+                        <option value="discovery">تشخيص احتياج / Discovery</option>
+                        <option value="offer_sent">عرض مُرسل / Offer Sent</option>
+                        <option value="negotiation">تفاوض / Negotiation</option>
+                        <option value="commit">موافقة نهائية (جاهز للدفع) / Commit</option>
+                        <option value="closed_won">مشتري / Closed Won</option>
+                        <option value="closed_lost">خسرنا الصفقة / Closed Lost</option>
+                      </select>
+                      {selectedStatus === 'qualified' && !dealStage && selectedStatus !== lead.status_code && (
+                        <p className="text-xs text-orange-500 mt-1">مطلوب: يرجى اختيار المرحلة</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Show existing deal stage if lead is already qualified */}
+                  {lead.status_code === 'qualified' && lead.deal_stage && selectedStatus !== 'qualified' && (
+                    <div className="bg-orange-50 border border-orange-200 rounded-md p-3">
+                      <p className="text-xs font-medium text-orange-700 mb-1">مرحلة الصفقة الحالية:</p>
+                      <p className="text-sm text-orange-800 font-medium" dir="auto">
+                        {({
+                          discovery: 'تشخيص احتياج / Discovery',
+                          offer_sent: 'عرض مُرسل / Offer Sent',
+                          negotiation: 'تفاوض / Negotiation',
+                          commit: 'موافقة نهائية / Commit',
+                          closed_won: 'مشتري / Closed Won',
+                          closed_lost: 'خسرنا الصفقة / Closed Lost',
+                        })[lead.deal_stage] || lead.deal_stage}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Lost Reason - appears when "Lost" is selected */}
+                  {selectedStatus === 'lost' && (
+                    <div className="animate-in fade-in slide-in-from-top-2 duration-200">
+                      <label className="block text-sm font-medium text-red-700 mb-1.5">
+                        سبب الخسارة <span className="text-red-500">*</span>
+                      </label>
+                      <textarea
+                        value={lostReason}
+                        onChange={(e) => setLostReason(e.target.value)}
+                        placeholder="اكتب سبب خسارة هذا الليد..."
+                        rows={3}
+                        dir="auto"
+                        className="w-full px-3 py-2 border border-red-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 bg-red-50 placeholder-red-300 text-sm"
+                        disabled={updatingStatus}
+                      />
+                      {selectedStatus === 'lost' && !lostReason.trim() && selectedStatus !== lead.status_code && (
+                        <p className="text-xs text-red-500 mt-1">مطلوب: يرجى كتابة السبب</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Show existing lost reason if lead is already lost */}
+                  {lead.status_code === 'lost' && lead.lost_reason && selectedStatus !== 'lost' && (
+                    <div className="bg-red-50 border border-red-200 rounded-md p-3">
+                      <p className="text-xs font-medium text-red-700 mb-1">سبب الخسارة السابق:</p>
+                      <p className="text-sm text-red-800" dir="auto">{lead.lost_reason}</p>
+                    </div>
+                  )}
+
+                  {/* Next Step Form - appears for Contacted & Qualified */}
+                  {needsNextStep(selectedStatus) && (
+                    <div className="animate-in fade-in slide-in-from-top-2 duration-200 border border-blue-200 rounded-lg p-4 bg-blue-50/50">
+                      <h4 className="text-sm font-bold text-blue-800 mb-3 flex items-center gap-1.5">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        الخطوة القادمة <span className="text-red-500">*</span>
+                      </h4>
+
+                      {/* Next Step Title */}
+                      <div className="mb-3">
+                        <label className="block text-xs font-medium text-blue-700 mb-1">ما هي الخطوة القادمة؟ *</label>
+                        <input
+                          type="text"
+                          value={nextStep.title}
+                          onChange={(e) => setNextStep(prev => ({ ...prev, title: e.target.value }))}
+                          placeholder="مثال: متابعة العرض المرسل..."
+                          dir="auto"
+                          className="w-full px-3 py-2 border border-blue-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm"
+                          disabled={updatingStatus}
+                        />
+                      </div>
+
+                      {/* Description */}
+                      <div className="mb-3">
+                        <label className="block text-xs font-medium text-blue-700 mb-1">تفاصيل إضافية</label>
+                        <textarea
+                          value={nextStep.description}
+                          onChange={(e) => setNextStep(prev => ({ ...prev, description: e.target.value }))}
+                          placeholder="تفاصيل إضافية عن الخطوة..."
+                          rows={2}
+                          dir="auto"
+                          className="w-full px-3 py-2 border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm"
+                          disabled={updatingStatus}
+                        />
+                      </div>
+
+                      {/* Date & Time Row */}
+                      <div className="grid grid-cols-2 gap-2 mb-3">
+                        <div>
+                          <label className="block text-xs font-medium text-blue-700 mb-1">التاريخ *</label>
+                          <input
+                            type="date"
+                            value={nextStep.dueDate}
+                            onChange={(e) => setNextStep(prev => ({ ...prev, dueDate: e.target.value }))}
+                            min={new Date().toISOString().split('T')[0]}
+                            className="w-full px-3 py-2 border border-blue-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm"
+                            disabled={updatingStatus}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-blue-700 mb-1">الوقت</label>
+                          <input
+                            type="time"
+                            value={nextStep.dueTime}
+                            onChange={(e) => setNextStep(prev => ({ ...prev, dueTime: e.target.value }))}
+                            className="w-full px-3 py-2 border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm"
+                            disabled={updatingStatus}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Contact Method */}
+                      <div className="mb-3">
+                        <label className="block text-xs font-medium text-blue-700 mb-1">وسيلة التواصل *</label>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {[
+                            { value: 'call', label: 'اتصال', icon: '📞' },
+                            { value: 'whatsapp', label: 'واتساب', icon: '💬' },
+                            { value: 'email', label: 'بريد', icon: '📧' },
+                            { value: 'meeting', label: 'اجتماع', icon: '🤝' },
+                            { value: 'sms', label: 'رسالة', icon: '📱' },
+                          ].map(method => (
+                            <button
+                              key={method.value}
+                              type="button"
+                              onClick={() => setNextStep(prev => ({ ...prev, contactMethod: method.value }))}
+                              className={`flex items-center justify-center gap-1 py-2 px-2 rounded-md text-xs font-medium transition-all ${
+                                nextStep.contactMethod === method.value
+                                  ? 'bg-blue-600 text-white shadow-sm'
+                                  : 'bg-white border border-blue-200 text-blue-700 hover:bg-blue-100'
+                              }`}
+                              disabled={updatingStatus}
+                            >
+                              <span>{method.icon}</span>
+                              <span>{method.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Priority */}
+                      <div>
+                        <label className="block text-xs font-medium text-blue-700 mb-1">الأولوية</label>
+                        <div className="flex gap-2">
+                          {[
+                            { value: 'low', label: 'منخفضة', color: 'gray' },
+                            { value: 'medium', label: 'متوسطة', color: 'blue' },
+                            { value: 'high', label: 'عالية', color: 'red' },
+                          ].map(p => (
+                            <button
+                              key={p.value}
+                              type="button"
+                              onClick={() => setNextStep(prev => ({ ...prev, priority: p.value }))}
+                              className={`flex-1 py-1.5 rounded-md text-xs font-medium transition-all ${
+                                nextStep.priority === p.value
+                                  ? p.color === 'red'
+                                    ? 'bg-red-600 text-white'
+                                    : p.color === 'blue'
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-gray-600 text-white'
+                                  : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+                              }`}
+                              disabled={updatingStatus}
+                            >
+                              {p.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   <button
                     onClick={handleStatusChange}
-                    disabled={updatingStatus || selectedStatus === lead.status_code}
-                    className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={
+                      updatingStatus ||
+                      selectedStatus === lead.status_code ||
+                      (selectedStatus === 'lost' && !lostReason.trim()) ||
+                      (selectedStatus === 'qualified' && !dealStage) ||
+                      (needsNextStep(selectedStatus) && (!nextStep.title.trim() || !nextStep.dueDate || !nextStep.contactMethod))
+                    }
+                    className={`w-full px-4 py-2 text-white rounded-md focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                      selectedStatus === 'lost'
+                        ? 'bg-red-600 hover:bg-red-700 focus:ring-red-500'
+                        : selectedStatus === 'qualified'
+                        ? 'bg-orange-600 hover:bg-orange-700 focus:ring-orange-500'
+                        : needsNextStep(selectedStatus)
+                        ? 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500'
+                        : 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500'
+                    }`}
                   >
-                    {updatingStatus ? 'Updating...' : 'Update Status'}
+                    {updatingStatus
+                      ? 'جاري التحديث...'
+                      : selectedStatus === 'lost'
+                      ? 'تأكيد الخسارة'
+                      : selectedStatus === 'qualified'
+                      ? 'تأكيد التأهيل + جدولة المتابعة'
+                      : selectedStatus === 'contacted'
+                      ? 'تأكيد التواصل + جدولة المتابعة'
+                      : 'Update Status'}
                   </button>
                 </div>
+              </div>
+
+              {/* Learning Path */}
+              <div className="bg-white rounded-lg shadow-md p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                  </svg>
+                  المسار التعليمي
+                </h3>
+                <div className="space-y-3">
+                  <select
+                    value={selectedLearningPath}
+                    onChange={async (e) => {
+                      const newValue = e.target.value;
+                      setSelectedLearningPath(newValue);
+                      setSavingLearningPath(true);
+                      try {
+                        await updateLead(id, { learning_path_id: newValue ? parseInt(newValue) : null });
+                        // Refresh lead
+                        const leadResponse = await getLead(id);
+                        if (leadResponse.success && leadResponse.data) {
+                          setLead(leadResponse.data);
+                        }
+                      } catch (err) {
+                        console.error('Error updating learning path:', err);
+                        alert('فشل في تحديث المسار التعليمي');
+                        setSelectedLearningPath(lead.learning_path_id || '');
+                      } finally {
+                        setSavingLearningPath(false);
+                      }
+                    }}
+                    className="w-full px-3 py-2.5 border border-purple-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 bg-purple-50/50 text-sm"
+                    disabled={savingLearningPath}
+                    dir="auto"
+                  >
+                    <option value="">-- اختر المسار التعليمي --</option>
+                    {learningPaths.map(path => (
+                      <option key={path.id} value={path.id}>
+                        {path.name_ar} / {path.name_en}
+                      </option>
+                    ))}
+                  </select>
+                  {savingLearningPath && (
+                    <p className="text-xs text-purple-600 flex items-center gap-1">
+                      <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      جاري الحفظ...
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* FAQ Panel - Pre-approved Q&A */}
+              <div className="bg-white rounded-lg shadow-md p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  أسئلة وأجوبة معتمدة
+                </h3>
+                <FAQPanel countryId={lead?.country_id} />
               </div>
 
               {/* Quick Actions */}

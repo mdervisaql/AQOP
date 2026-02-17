@@ -215,11 +215,22 @@ export default function MyLeads() {
         {/* Main Content Area */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 lg:py-8">
           {/* Desktop Header */}
-          <div className="hidden lg:block mb-8">
-            <h1 className="text-3xl font-bold text-gray-900">My Leads</h1>
-            <p className="mt-2 text-gray-600">
-              Manage your assigned leads - {user?.display_name}
-            </p>
+          <div className="hidden lg:flex lg:items-center lg:justify-between mb-8">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">My Leads</h1>
+              <p className="mt-2 text-gray-600">
+                Manage your assigned leads - {user?.display_name}
+              </p>
+            </div>
+            <a
+              href="/add-lead"
+              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg shadow-sm text-sm font-medium hover:bg-blue-700 transition-colors"
+            >
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              إضافة ليد
+            </a>
           </div>
 
           {/* Desktop Filters */}
@@ -387,6 +398,17 @@ export default function MyLeads() {
           )}
         </div>
       </main>
+
+      {/* Mobile FAB - Add Lead */}
+      <a
+        href="/add-lead"
+        className="lg:hidden fixed bottom-20 right-4 z-30 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-blue-700 active:scale-95 transition-all touch-manipulation"
+        aria-label="إضافة ليد جديد"
+      >
+        <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6v12m6-6H6" />
+        </svg>
+      </a>
 
       <BulkWhatsAppModal
         isOpen={showWhatsAppModal}

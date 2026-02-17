@@ -13,7 +13,10 @@ import {
   X,
   Facebook,
   MessageSquare,
-  PieChart
+  PieChart,
+  BookOpen,
+  HelpCircle,
+  Target
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
@@ -123,6 +126,9 @@ export default function Navigation({ currentPage = '' }) {
               Administration
             </div>
             <NavItem to="/admin/users" icon={Users} label="User Management" activeId="users" />
+            <NavItem to="/settings/learning-paths" icon={BookOpen} label="Learning Paths" activeId="learning-paths" />
+            <NavItem to="/settings/faq" icon={HelpCircle} label="FAQ Management" activeId="faq" />
+            <NavItem to="/settings/conversion-targets" icon={Target} label="Conversion Targets" activeId="conversion-targets" />
             <NavItem to="/system-health" icon={Activity} label="System Health" activeId="system-health" />
           </>
         )}
