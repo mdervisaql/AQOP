@@ -188,7 +188,7 @@ function aqop_execute_airtable_auto_sync()
 		return;
 	}
 
-	error_log('AQOP Auto-Sync: Starting automatic Airtable sync at ' . current_time('mysql'));
+	error_log('AQOP Auto-Sync: Starting incremental sync at ' . current_time('mysql'));
 
 	try {
 		require_once AQOP_LEADS_PLUGIN_DIR . 'includes/class-airtable-sync.php';
@@ -199,22 +199,55 @@ function aqop_execute_airtable_auto_sync()
 		}
 
 		$sync = new AQOP_Airtable_Sync();
-		$result = $sync->sync_from_airtable();
+		
+		// Use incremental sync_chunk with smart sync (only unsynced records)
+		// Process all chunks until complete
+		$offset = '';
+		$total_processed = 0;
+		$total_created = 0;
+		$total_updated = 0;
+		$total_marked = 0;
+		$max_iterations = 100; // Safety limit to prevent infinite loops
+		$iteration = 0;
+
+		do {
+			$iteration++;
+			$result = $sync->sync_chunk($offset, 100, false); // false = use smart sync filter
+			
+			if (!$result['success']) {
+				error_log('AQOP Auto-Sync: Chunk failed - ' . $result['message']);
+				break;
+			}
+
+			$total_processed += $result['chunk_processed'];
+			$total_created += $result['chunk_created'];
+			$total_updated += $result['chunk_updated'];
+			$total_marked += isset($result['chunk_marked']) ? $result['chunk_marked'] : 0;
+			$offset = $result['next_offset'];
+
+		} while (!$result['is_complete'] && $iteration < $max_iterations);
+
+		$final_result = array(
+			'success' => true,
+			'leads_processed' => $total_processed,
+			'leads_created' => $total_created,
+			'leads_updated' => $total_updated,
+			'leads_marked' => $total_marked,
+			'message' => sprintf(
+				'Incremental sync completed: %d processed, %d created, %d updated, %d marked',
+				$total_processed, $total_created, $total_updated, $total_marked
+			),
+		);
 
 		// Save last auto-sync timestamp and result
 		update_option('aqop_airtable_last_auto_sync', current_time('mysql'));
-		update_option('aqop_airtable_last_auto_sync_result', $result);
+		update_option('aqop_airtable_last_auto_sync_result', $final_result);
 
-		if ($result['success']) {
-			error_log(sprintf(
-				'AQOP Auto-Sync: Completed - %d processed, %d created, %d updated',
-				$result['leads_processed'],
-				$result['leads_created'],
-				$result['leads_updated']
-			));
-		} else {
-			error_log('AQOP Auto-Sync: Failed - ' . $result['message']);
-		}
+		error_log(sprintf(
+			'AQOP Auto-Sync: Completed - %d processed, %d created, %d updated, %d marked as synced',
+			$total_processed, $total_created, $total_updated, $total_marked
+		));
+
 	} catch (Exception $e) {
 		error_log('AQOP Auto-Sync: Exception - ' . $e->getMessage());
 		update_option('aqop_airtable_last_auto_sync', current_time('mysql'));

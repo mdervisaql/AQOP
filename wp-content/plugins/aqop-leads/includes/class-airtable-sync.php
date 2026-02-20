@@ -40,6 +40,12 @@ class AQOP_Airtable_Sync
 	private $sources_cache = array();
 
 	/**
+	 * Debug mode - set to true only when troubleshooting sync issues
+	 * @var bool
+	 */
+	private $debug = false;
+
+	/**
 	 * Airtable API base URL
 	 */
 	const API_BASE_URL = 'https://api.airtable.com/v0/';
@@ -590,46 +596,46 @@ class AQOP_Airtable_Sync
 		$mapped_data = $this->map_airtable_record($record);
 
 		// DEBUG: Log the full mapped_data to trace issues
-		error_log('[AQOP Sync Debug] Record ID: ' . $record['id']);
-		error_log('[AQOP Sync Debug] Full mapped_data: ' . print_r($mapped_data, true));
-		error_log('[AQOP Sync Debug] Airtable fields: ' . print_r(array_keys($record['fields'] ?? []), true));
+		$this->debug && error_log('[AQOP Sync Debug] Record ID: ' . $record['id']);
+		$this->debug && error_log('[AQOP Sync Debug] Full mapped_data: ' . print_r($mapped_data, true));
+		$this->debug && error_log('[AQOP Sync Debug] Airtable fields: ' . print_r(array_keys($record['fields'] ?? []), true));
 
 		if (empty($mapped_data['lead_name']) && empty($mapped_data['email'])) {
-			error_log('[AQOP Sync Debug] Skipping record - no lead_name or email');
+			$this->debug && error_log('[AQOP Sync Debug] Skipping record - no lead_name or email');
 			return null; // Skip invalid records
 		}
 
 		// Handle related entities (using cache)
 		if (!empty($mapped_data['country_name'])) {
-			error_log('[AQOP Sync] prepare_lead_data: Country value from Airtable: "' . $mapped_data['country_name'] . '"');
+			$this->debug && error_log('[AQOP Sync] prepare_lead_data: Country value from Airtable: "' . $mapped_data['country_name'] . '"');
 			$mapped_data['country_id'] = $this->get_or_create_country($mapped_data['country_name']);
-			error_log('[AQOP Sync] prepare_lead_data: Received country_id=' . ($mapped_data['country_id'] ?? 'NULL'));
+			$this->debug && error_log('[AQOP Sync] prepare_lead_data: Received country_id=' . ($mapped_data['country_id'] ?? 'NULL'));
 			unset($mapped_data['country_name']);
 		}
 
 		if (!empty($mapped_data['group_name'])) {
-			error_log('[AQOP Sync] prepare_lead_data: Group value from Airtable: "' . $mapped_data['group_name'] . '"');
+			$this->debug && error_log('[AQOP Sync] prepare_lead_data: Group value from Airtable: "' . $mapped_data['group_name'] . '"');
 			$mapped_data['group_id'] = $this->get_or_create_campaign_group($mapped_data['group_name']);
-			error_log('[AQOP Sync] prepare_lead_data: Received group_id=' . ($mapped_data['group_id'] ?? 'NULL'));
+			$this->debug && error_log('[AQOP Sync] prepare_lead_data: Received group_id=' . ($mapped_data['group_id'] ?? 'NULL'));
 			unset($mapped_data['group_name']);
 		}
 
 		if (!empty($mapped_data['campaign_name'])) {
-			error_log('[AQOP Sync] prepare_lead_data: Campaign value from Airtable: "' . $mapped_data['campaign_name'] . '"');
+			$this->debug && error_log('[AQOP Sync] prepare_lead_data: Campaign value from Airtable: "' . $mapped_data['campaign_name'] . '"');
 			$mapped_data['campaign_id'] = $this->get_or_create_campaign(
 				$mapped_data['campaign_name'],
 				$mapped_data['group_id'] ?? null,
 				$mapped_data['country_id'] ?? null,
 				$mapped_data['platform'] ?? null
 			);
-			error_log('[AQOP Sync] prepare_lead_data: Received campaign_id=' . ($mapped_data['campaign_id'] ?? 'NULL'));
+			$this->debug && error_log('[AQOP Sync] prepare_lead_data: Received campaign_id=' . ($mapped_data['campaign_id'] ?? 'NULL'));
 			unset($mapped_data['campaign_name']);
 		}
 
 		if (!empty($mapped_data['source_name'])) {
-			error_log('[AQOP Sync] prepare_lead_data: Source value from Airtable: "' . $mapped_data['source_name'] . '"');
+			$this->debug && error_log('[AQOP Sync] prepare_lead_data: Source value from Airtable: "' . $mapped_data['source_name'] . '"');
 			$mapped_data['source_id'] = $this->get_or_create_source($mapped_data['source_name']);
-			error_log('[AQOP Sync] prepare_lead_data: Received source_id=' . ($mapped_data['source_id'] ?? 'NULL'));
+			$this->debug && error_log('[AQOP Sync] prepare_lead_data: Received source_id=' . ($mapped_data['source_id'] ?? 'NULL'));
 			unset($mapped_data['source_name']);
 		}
 
@@ -666,9 +672,9 @@ class AQOP_Airtable_Sync
 
 		// Add debug logging
 		if (defined('WP_DEBUG') && WP_DEBUG) {
-			error_log('[AQOP Sync] Record ID: ' . $record['id']);
-			error_log('[AQOP Sync] Mapped name: ' . (isset($mapped_data['lead_name']) ? $mapped_data['lead_name'] : (isset($mapped_data['name']) ? $mapped_data['name'] : 'EMPTY')));
-			error_log('[AQOP Sync] Final lead_data name: ' . (isset($lead_data['name']) ? $lead_data['name'] : 'EMPTY'));
+			$this->debug && error_log('[AQOP Sync] Record ID: ' . $record['id']);
+			$this->debug && error_log('[AQOP Sync] Mapped name: ' . (isset($mapped_data['lead_name']) ? $mapped_data['lead_name'] : (isset($mapped_data['name']) ? $mapped_data['name'] : 'EMPTY')));
+			$this->debug && error_log('[AQOP Sync] Final lead_data name: ' . (isset($lead_data['name']) ? $lead_data['name'] : 'EMPTY'));
 		}
 
 		// CRITICAL: Set default priority if not set (database column is NOT NULL)
@@ -845,18 +851,18 @@ class AQOP_Airtable_Sync
 		global $wpdb;
 
 		if (empty($country_name)) {
-			error_log('[AQOP Sync] get_or_create_country: Empty country name, returning null');
+			$this->debug && error_log('[AQOP Sync] get_or_create_country: Empty country name, returning null');
 			return null;
 		}
 
 		$country_name = sanitize_text_field($country_name);
 		$cache_key = strtolower($country_name);
 
-		error_log('[AQOP Sync] get_or_create_country: Looking for "' . $country_name . '"');
+		$this->debug && error_log('[AQOP Sync] get_or_create_country: Looking for "' . $country_name . '"');
 
 		// Check cache first
 		if (isset($this->countries_cache[$cache_key])) {
-			error_log('[AQOP Sync] get_or_create_country: Found in cache, ID=' . $this->countries_cache[$cache_key]);
+			$this->debug && error_log('[AQOP Sync] get_or_create_country: Found in cache, ID=' . $this->countries_cache[$cache_key]);
 			return $this->countries_cache[$cache_key];
 		}
 
@@ -870,7 +876,7 @@ class AQOP_Airtable_Sync
 		);
 
 		if ($existing) {
-			error_log('[AQOP Sync] get_or_create_country: Found existing, ID=' . $existing);
+			$this->debug && error_log('[AQOP Sync] get_or_create_country: Found existing, ID=' . $existing);
 			$this->countries_cache[$cache_key] = $existing;
 			return $existing;
 		}
@@ -927,12 +933,12 @@ class AQOP_Airtable_Sync
 
 		if ($inserted) {
 			$id = $wpdb->insert_id;
-			error_log('[AQOP Sync] get_or_create_country: Created new country, ID=' . $id);
+			$this->debug && error_log('[AQOP Sync] get_or_create_country: Created new country, ID=' . $id);
 			$this->countries_cache[$cache_key] = $id;
 			return $id;
 		}
 
-		error_log('[AQOP Sync] get_or_create_country: Failed to create country, DB error: ' . $wpdb->last_error);
+		$this->debug && error_log('[AQOP Sync] get_or_create_country: Failed to create country, DB error: ' . $wpdb->last_error);
 		return null;
 	}
 
@@ -947,18 +953,18 @@ class AQOP_Airtable_Sync
 		global $wpdb;
 
 		if (empty($group_name)) {
-			error_log('[AQOP Sync] get_or_create_campaign_group: Empty group name, returning null');
+			$this->debug && error_log('[AQOP Sync] get_or_create_campaign_group: Empty group name, returning null');
 			return null;
 		}
 
 		$group_name = sanitize_text_field($group_name);
 		$cache_key = strtolower($group_name);
 
-		error_log('[AQOP Sync] get_or_create_campaign_group: Looking for "' . $group_name . '"');
+		$this->debug && error_log('[AQOP Sync] get_or_create_campaign_group: Looking for "' . $group_name . '"');
 
 		// Check cache first
 		if (isset($this->groups_cache[$cache_key])) {
-			error_log('[AQOP Sync] get_or_create_campaign_group: Found in cache, ID=' . $this->groups_cache[$cache_key]);
+			$this->debug && error_log('[AQOP Sync] get_or_create_campaign_group: Found in cache, ID=' . $this->groups_cache[$cache_key]);
 			return $this->groups_cache[$cache_key];
 		}
 
@@ -972,13 +978,13 @@ class AQOP_Airtable_Sync
 		);
 
 		if ($existing) {
-			error_log('[AQOP Sync] get_or_create_campaign_group: Found existing, ID=' . $existing);
+			$this->debug && error_log('[AQOP Sync] get_or_create_campaign_group: Found existing, ID=' . $existing);
 			$this->groups_cache[$cache_key] = $existing;
 			return $existing;
 		}
 
 		// Create new group
-		error_log('[AQOP Sync] get_or_create_campaign_group: Creating new group "' . $group_name . '"');
+		$this->debug && error_log('[AQOP Sync] get_or_create_campaign_group: Creating new group "' . $group_name . '"');
 		$inserted = $wpdb->insert(
 			$wpdb->prefix . 'aq_campaign_groups',
 			array(
@@ -992,12 +998,12 @@ class AQOP_Airtable_Sync
 
 		if ($inserted) {
 			$id = $wpdb->insert_id;
-			error_log('[AQOP Sync] get_or_create_campaign_group: Created new group, ID=' . $id);
+			$this->debug && error_log('[AQOP Sync] get_or_create_campaign_group: Created new group, ID=' . $id);
 			$this->groups_cache[$cache_key] = $id;
 			return $id;
 		}
 
-		error_log('[AQOP Sync] get_or_create_campaign_group: Failed to create group, DB error: ' . $wpdb->last_error);
+		$this->debug && error_log('[AQOP Sync] get_or_create_campaign_group: Failed to create group, DB error: ' . $wpdb->last_error);
 		return null;
 	}
 
@@ -1015,18 +1021,18 @@ class AQOP_Airtable_Sync
 		global $wpdb;
 
 		if (empty($campaign_name)) {
-			error_log('[AQOP Sync] get_or_create_campaign: Empty campaign name, returning null');
+			$this->debug && error_log('[AQOP Sync] get_or_create_campaign: Empty campaign name, returning null');
 			return null;
 		}
 
 		$campaign_name = sanitize_text_field($campaign_name);
 		$cache_key = strtolower($campaign_name);
 
-		error_log('[AQOP Sync] get_or_create_campaign: Looking for "' . $campaign_name . '" (group_id=' . ($group_id ?? 'NULL') . ', country_id=' . ($country_id ?? 'NULL') . ')');
+		$this->debug && error_log('[AQOP Sync] get_or_create_campaign: Looking for "' . $campaign_name . '" (group_id=' . ($group_id ?? 'NULL') . ', country_id=' . ($country_id ?? 'NULL') . ')');
 
 		// Check cache first
 		if (isset($this->campaigns_cache[$cache_key])) {
-			error_log('[AQOP Sync] get_or_create_campaign: Found in cache, ID=' . $this->campaigns_cache[$cache_key]);
+			$this->debug && error_log('[AQOP Sync] get_or_create_campaign: Found in cache, ID=' . $this->campaigns_cache[$cache_key]);
 			return $this->campaigns_cache[$cache_key];
 		}
 
@@ -1039,13 +1045,13 @@ class AQOP_Airtable_Sync
 		);
 
 		if ($existing) {
-			error_log('[AQOP Sync] get_or_create_campaign: Found existing, ID=' . $existing);
+			$this->debug && error_log('[AQOP Sync] get_or_create_campaign: Found existing, ID=' . $existing);
 			$this->campaigns_cache[$cache_key] = $existing;
 			return $existing;
 		}
 
 		// Create new campaign
-		error_log('[AQOP Sync] get_or_create_campaign: Creating new campaign "' . $campaign_name . '"');
+		$this->debug && error_log('[AQOP Sync] get_or_create_campaign: Creating new campaign "' . $campaign_name . '"');
 		$inserted = $wpdb->insert(
 			$wpdb->prefix . 'aq_leads_campaigns',
 			array(
@@ -1062,12 +1068,12 @@ class AQOP_Airtable_Sync
 
 		if ($inserted) {
 			$id = $wpdb->insert_id;
-			error_log('[AQOP Sync] get_or_create_campaign: Created new campaign, ID=' . $id);
+			$this->debug && error_log('[AQOP Sync] get_or_create_campaign: Created new campaign, ID=' . $id);
 			$this->campaigns_cache[$cache_key] = $id;
 			return $id;
 		}
 
-		error_log('[AQOP Sync] get_or_create_campaign: Failed to create campaign, DB error: ' . $wpdb->last_error);
+		$this->debug && error_log('[AQOP Sync] get_or_create_campaign: Failed to create campaign, DB error: ' . $wpdb->last_error);
 		return null;
 	}
 
@@ -1083,18 +1089,18 @@ class AQOP_Airtable_Sync
 		global $wpdb;
 
 		if (empty($source_name)) {
-			error_log('[AQOP Sync] get_or_create_source: Empty source name, returning null');
+			$this->debug && error_log('[AQOP Sync] get_or_create_source: Empty source name, returning null');
 			return null;
 		}
 
 		$source_name = sanitize_text_field($source_name);
 		$cache_key = strtolower($source_name);
 
-		error_log('[AQOP Sync] get_or_create_source: Looking for "' . $source_name . '"');
+		$this->debug && error_log('[AQOP Sync] get_or_create_source: Looking for "' . $source_name . '"');
 
 		// Check cache first
 		if (isset($this->sources_cache[$cache_key])) {
-			error_log('[AQOP Sync] get_or_create_source: Found in cache, ID=' . $this->sources_cache[$cache_key]);
+			$this->debug && error_log('[AQOP Sync] get_or_create_source: Found in cache, ID=' . $this->sources_cache[$cache_key]);
 			return $this->sources_cache[$cache_key];
 		}
 
@@ -1108,13 +1114,13 @@ class AQOP_Airtable_Sync
 		);
 
 		if ($existing) {
-			error_log('[AQOP Sync] get_or_create_source: Found existing, ID=' . $existing);
+			$this->debug && error_log('[AQOP Sync] get_or_create_source: Found existing, ID=' . $existing);
 			$this->sources_cache[$cache_key] = $existing;
 			return $existing;
 		}
 
 		// Create new source
-		error_log('[AQOP Sync] get_or_create_source: Creating new source "' . $source_name . '"');
+		$this->debug && error_log('[AQOP Sync] get_or_create_source: Creating new source "' . $source_name . '"');
 		$source_code = sanitize_title($source_name);
 		$inserted = $wpdb->insert(
 			$wpdb->prefix . 'aq_leads_sources',
@@ -1129,12 +1135,12 @@ class AQOP_Airtable_Sync
 
 		if ($inserted) {
 			$id = $wpdb->insert_id;
-			error_log('[AQOP Sync] get_or_create_source: Created new source, ID=' . $id);
+			$this->debug && error_log('[AQOP Sync] get_or_create_source: Created new source, ID=' . $id);
 			$this->sources_cache[$cache_key] = $id;
 			return $id;
 		}
 
-		error_log('[AQOP Sync] get_or_create_source: Failed to create source, DB error: ' . $wpdb->last_error);
+		$this->debug && error_log('[AQOP Sync] get_or_create_source: Failed to create source, DB error: ' . $wpdb->last_error);
 		return null;
 	}
 
@@ -1164,14 +1170,14 @@ class AQOP_Airtable_Sync
 		}
 
 		if (empty($mappings) || !is_array($mappings) || !isset($record['fields'])) {
-			error_log('[AQOP Sync Debug] map_airtable_record: Empty mappings or no record fields');
-			error_log('[AQOP Sync Debug] mappings count: ' . (is_array($mappings) ? count($mappings) : 'not array'));
-			error_log('[AQOP Sync Debug] record has fields: ' . (isset($record['fields']) ? 'yes' : 'no'));
+			$this->debug && error_log('[AQOP Sync Debug] map_airtable_record: Empty mappings or no record fields');
+			$this->debug && error_log('[AQOP Sync Debug] mappings count: ' . (is_array($mappings) ? count($mappings) : 'not array'));
+			$this->debug && error_log('[AQOP Sync Debug] record has fields: ' . (isset($record['fields']) ? 'yes' : 'no'));
 			return $mapped_data;
 		}
 
 		// DEBUG: Log mappings configuration
-		error_log('[AQOP Sync Debug] Processing ' . count($mappings) . ' field mappings');
+		$this->debug && error_log('[AQOP Sync Debug] Processing ' . count($mappings) . ' field mappings');
 
 		foreach ($mappings as $mapping) {
 			$airtable_field = $mapping['airtable_field'];
