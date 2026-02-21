@@ -153,6 +153,7 @@ export default function AllLeads() {
 
     try {
       const updates = [];
+      const errors = [];
 
       for (const leadId of selectedLeads) {
         const updateData = {};
@@ -165,7 +166,16 @@ export default function AllLeads() {
         }
 
         if (Object.keys(updateData).length > 0) {
-          updates.push(updateLeadMutation.mutateAsync({ id: leadId, data: updateData }));
+          updates.push(
+            updateLeadMutation.mutateAsync({ id: leadId, data: updateData })
+              .catch(error => {
+                errors.push({
+                  leadId,
+                  message: error.response?.data?.message || error.message || 'Unknown error'
+                });
+                return null;
+              })
+          );
         }
       }
 
@@ -175,10 +185,20 @@ export default function AllLeads() {
       setBulkAction('');
       setBulkAssignTo('');
 
-      alert(`Successfully updated ${selectedLeads.length} lead(s)!`);
+      if (errors.length === 0) {
+        alert(`Successfully updated ${selectedLeads.length} lead(s)!`);
+      } else if (errors.length === selectedLeads.length) {
+        // All failed - show first error in detail
+        alert(`Failed to update leads:\n${errors[0].message}`);
+      } else {
+        // Partial success
+        const successCount = selectedLeads.length - errors.length;
+        alert(`Updated ${successCount} lead(s) successfully.\n${errors.length} failed:\n${errors.map(e => `Lead #${e.leadId}: ${e.message}`).join('\n')}`);
+      }
     } catch (err) {
       console.error('Bulk action error:', err);
-      alert('Some updates may have failed. Please check and try again.');
+      const errorMessage = err.response?.data?.message || err.message || 'Unknown error occurred';
+      alert(`Error: ${errorMessage}`);
     } finally {
       setProcessingBulk(false);
     }

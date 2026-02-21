@@ -240,7 +240,7 @@ class AQOP_Leads_Manager
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
 		$lead = $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT 
+				"SELECT
 					l.*,
 					s.status_name_en,
 					s.status_name_ar,
@@ -249,7 +249,7 @@ class AQOP_Leads_Manager
 					camp.name as campaign_name,
 					c.country_name_en,
 					c.country_name_ar,
-					u.display_name as assigned_user_name
+					u.display_name as assigned_to_name
 				FROM {$wpdb->prefix}aq_leads l
 				LEFT JOIN {$wpdb->prefix}aq_leads_status s ON l.status_id = s.id
 				LEFT JOIN {$wpdb->prefix}aq_leads_sources src ON l.source_id = src.id
@@ -844,7 +844,8 @@ class AQOP_Leads_Manager
 				src.source_name,
 				camp.name as campaign_name,
 				c.country_name_en,
-				u.display_name as assigned_user_name
+				c.country_name_ar,
+				u.display_name as assigned_to_name
 			FROM {$wpdb->prefix}aq_leads l
 			LEFT JOIN {$wpdb->prefix}aq_leads_status s ON l.status_id = s.id
 			LEFT JOIN {$wpdb->prefix}aq_leads_sources src ON l.source_id = src.id

@@ -911,6 +911,69 @@ class AQOP_Leads_API
 			if (isset($params[$field])) {
 				if (in_array($field, array('country_id', 'source_id', 'campaign_id', 'assigned_to'), true)) {
 					$lead_data[$field] = absint($params[$field]);
+					
+					if ($field === 'assigned_to') {
+						
+						// Validate country permissions for assigned user
+						if ($lead_data[$field] > 0 && $lead->country_id) {
+							$assigned_user = get_userdata($lead_data[$field]);
+							
+							error_log('VALIDATION DEBUG: assigned_user_id=' . $lead_data[$field] . ', lead_country_id=' . $lead->country_id);
+							error_log('VALIDATION DEBUG: assigned_user roles=' . print_r($assigned_user->roles ?? [], true));
+							
+							// Skip validation for administrators
+							if ($assigned_user && !in_array('administrator', $assigned_user->roles)) {
+								$assigned_user_countries = get_user_meta($lead_data[$field], 'aq_assigned_countries', true);
+								$can_see_unassigned = get_user_meta($lead_data[$field], 'aq_can_see_unassigned_countries', true);
+								
+								error_log('VALIDATION DEBUG: user_countries=' . print_r($assigned_user_countries, true));
+								error_log('VALIDATION DEBUG: can_see_unassigned=' . var_export($can_see_unassigned, true));
+								
+								$has_permission = false;
+								
+								// Check if user is assigned to this country (ensure type matching)
+								if (is_array($assigned_user_countries) && (in_array($lead->country_id, $assigned_user_countries) || in_array((int)$lead->country_id, $assigned_user_countries))) {
+									$has_permission = true;
+									error_log('VALIDATION DEBUG: Permission granted - user has country');
+								}
+								
+								// Or if lead's country is unassigned and user can see unassigned
+								if (!$has_permission && $can_see_unassigned) {
+									global $wpdb;
+									$country_has_manager = $wpdb->get_var($wpdb->prepare(
+										"SELECT COUNT(*) FROM {$wpdb->usermeta} 
+										WHERE meta_key = 'aq_assigned_countries' 
+										AND meta_value LIKE %s",
+										'%"' . $lead->country_id . '"%'
+									));
+									error_log('VALIDATION DEBUG: country_has_manager=' . $country_has_manager);
+									if (!$country_has_manager) {
+										$has_permission = true;
+										error_log('VALIDATION DEBUG: Permission granted - unassigned country');
+									}
+								}
+								
+								error_log('VALIDATION DEBUG: Final has_permission=' . var_export($has_permission, true));
+								
+								if (!$has_permission) {
+									error_log('VALIDATION DEBUG: BLOCKING assignment!');
+									return new WP_Error(
+										'invalid_country_assignment',
+										sprintf(
+											__('Cannot assign lead from %s to user %s. User does not have permission for this country.', 'aqop-leads'),
+											$lead->country_name_en ?? 'Unknown',
+											$assigned_user->display_name
+										),
+										array('status' => 403)
+									);
+								} else {
+									error_log('VALIDATION DEBUG: ALLOWING assignment');
+								}
+							} else {
+								error_log('VALIDATION DEBUG: Skipping validation - user is administrator');
+							}
+						}
+					}
 				} elseif ('email' === $field) {
 					$lead_data[$field] = sanitize_email($params[$field]);
 				} elseif ('status' === $field || 'status_code' === $field) {
