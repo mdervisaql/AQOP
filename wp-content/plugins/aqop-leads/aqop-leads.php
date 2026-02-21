@@ -272,3 +272,6 @@ function aqop_clear_airtable_sync_cron()
 	}
 }
 register_deactivation_hook(__FILE__, 'aqop_clear_airtable_sync_cron');
+
+// Load debug script for troubleshooting assigned_to issues
+require_once AQOP_LEADS_PLUGIN_DIR . 'debug-assign.php';
