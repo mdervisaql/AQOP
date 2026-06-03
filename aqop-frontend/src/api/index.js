@@ -4,7 +4,7 @@
  * Centralized API client for all backend requests with automatic token refresh.
  */
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://operation.aqleeat.co/wp-json';
+export const API_URL = import.meta.env.VITE_API_URL || 'https://operation.aqleeat.co/wp-json';
 
 /**
  * Authentication endpoints that must NEVER receive an Authorization header.

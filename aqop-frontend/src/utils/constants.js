@@ -2,7 +2,8 @@
  * Application Constants
  */
 
-export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8888/aqleeat-operation/wp-json';
+// Single source of truth for the API base URL (defined in api/index.js).
+export { API_URL } from '../api/index';
 
 export const TOKEN_KEYS = {
   ACCESS: 'access_token',
