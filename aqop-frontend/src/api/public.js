@@ -1,10 +1,10 @@
 /**
  * Public API
- * 
+ *
  * Handles public API calls (no authentication required).
  */
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8888/aqleeat-operation/wp-json';
+import { API_URL } from './index';
 
 /**
  * Submit public lead form
