@@ -6,10 +6,18 @@
 
 import { Navigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
+import { isAuthenticated, getCurrentUser } from '../api/auth';
 import { hasRole, getDefaultRoute, getRoleDisplayName } from '../utils/roleHelpers';
 
 export const ProtectedRoute = ({ children, requiredRole = null, showAccessDenied = true }) => {
   const { isAuth, user, loading } = useAuth();
+
+  // Fall back to token presence (and stored user) as a backup source of truth.
+  // This prevents a valid session from being bounced to /login if the React
+  // auth state hasn't propagated yet (e.g. right after the first login), since
+  // ProtectedRoute would otherwise depend solely on the isAuth context value.
+  const authed = isAuth || isAuthenticated();
+  const effectiveUser = user || getCurrentUser();
 
   // Show loading state
   if (loading) {
@@ -24,7 +32,7 @@ export const ProtectedRoute = ({ children, requiredRole = null, showAccessDenied
   }
 
   // Not authenticated - redirect to login
-  if (!isAuth) {
+  if (!authed) {
     return <Navigate to="/login" replace />;
   }
 
@@ -34,15 +42,15 @@ export const ProtectedRoute = ({ children, requiredRole = null, showAccessDenied
   }
 
   // Check role authorization
-  const hasAccess = hasRole(user, requiredRole);
+  const hasAccess = hasRole(effectiveUser, requiredRole);
 
   if (!hasAccess) {
     // Show access denied page or redirect to default route
     if (showAccessDenied) {
-      return <AccessDeniedPage user={user} requiredRole={requiredRole} />;
+      return <AccessDeniedPage user={effectiveUser} requiredRole={requiredRole} />;
     } else {
       // Redirect to user's default route based on their role
-      const defaultRoute = getDefaultRoute(user);
+      const defaultRoute = getDefaultRoute(effectiveUser);
       return <Navigate to={defaultRoute} replace />;
     }
   }
