@@ -246,6 +246,14 @@ createRoot(document.getElementById('root')).render(
                       </ProtectedRoute>
                     }
                   />
+                  <Route
+                    path="/system-health"
+                    element={
+                      <ProtectedRoute requiredRole={ROLES.OPERATION_ADMIN}>
+                        <SystemHealth />
+                      </ProtectedRoute>
+                    }
+                  />
 
                   {/* Public Routes - No Authentication Required */}
                   <Route path="/submit-lead" element={<LeadForm />} />
