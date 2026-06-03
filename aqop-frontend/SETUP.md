@@ -5,21 +5,26 @@
 ### API base URL (`.env.production`)
 
 Production serves the frontend and the WordPress REST API from the **same
-origin**, and the REST routes are exposed at the root (no `/wp-json` prefix):
+origin**, with REST routes exposed at the root (no `/wp-json` prefix). The base
+is therefore left **empty** so all requests are **relative** to whatever host
+serves the app:
 
 ```
-VITE_API_URL=https://leads.aqleeat.com
+VITE_API_URL=''
 ```
 
-The app's endpoints are written relative to this base, e.g.
-`POST ${VITE_API_URL}/aqop-jwt/v1/login` and `GET ${VITE_API_URL}/aqop/v1/users`.
+With an empty base, endpoints resolve same-origin, e.g. `POST /aqop-jwt/v1/login`
+and `GET /aqop/v1/users` against `leads.aqleeat.com` in production — and against
+any test/staging host without rebuilding.
 
-> Do NOT use `https://operation.aqleeat.co/wp-json` for production — that host
-> and the `/wp-json` prefix do not match the deployed production origin.
+> Do NOT bake an absolute host (e.g. `https://operation.aqleeat.co/wp-json`).
+> The code uses `import.meta.env.VITE_API_URL ?? ''`, so an explicit empty value
+> is respected as same-origin (nullish coalescing, not `||`).
 
 Vite reads `.env.production` automatically when running `npm run build`
 (mode = `production`). The file is committed; per-developer overrides go in
-`.env.production.local` (gitignored).
+`.env.production.local` (gitignored). For local dev against a remote backend,
+set an absolute `VITE_API_URL` in `.env` / `.env.local`.
 
 ### Build steps
 

@@ -4,7 +4,11 @@
  * Centralized API client for all backend requests with automatic token refresh.
  */
 
-export const API_URL = import.meta.env.VITE_API_URL || 'https://operation.aqleeat.co/wp-json';
+// Single source of truth for the API base URL.
+// Defaults to '' (same-origin, relative requests) so /aqop/... and
+// /aqop-jwt/... resolve against whatever host serves the app. Use nullish
+// coalescing so an explicit empty VITE_API_URL is respected as same-origin.
+export const API_URL = import.meta.env.VITE_API_URL ?? '';
 
 /**
  * Authentication endpoints that must NEVER receive an Authorization header.
