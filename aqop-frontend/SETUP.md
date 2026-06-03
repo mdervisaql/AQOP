@@ -1,5 +1,49 @@
 # AQOP Frontend Setup Guide
 
+## 🏗️ Production Build & Deployment
+
+### API base URL (`.env.production`)
+
+Production serves the frontend and the WordPress REST API from the **same
+origin**, and the REST routes are exposed at the root (no `/wp-json` prefix):
+
+```
+VITE_API_URL=https://leads.aqleeat.com
+```
+
+The app's endpoints are written relative to this base, e.g.
+`POST ${VITE_API_URL}/aqop-jwt/v1/login` and `GET ${VITE_API_URL}/aqop/v1/users`.
+
+> Do NOT use `https://operation.aqleeat.co/wp-json` for production — that host
+> and the `/wp-json` prefix do not match the deployed production origin.
+
+Vite reads `.env.production` automatically when running `npm run build`
+(mode = `production`). The file is committed; per-developer overrides go in
+`.env.production.local` (gitignored).
+
+### Build steps
+
+```bash
+cd aqop-frontend
+npm ci          # clean, lockfile-exact install (use `npm install` if no lockfile)
+npm run build   # outputs static assets to ./dist using .env.production
+```
+
+The build emits a self-contained `dist/`:
+- `dist/index.html` references only the hashed bundle/CSS — **no injection
+  scripts**. Routing and navigation work natively via React Router.
+- Serve `dist/` as a SPA: all unknown paths must fall back to `index.html`
+  so client-side routes (`/admin/users`, `/system-health`, `/manager/*`,
+  `/settings/*`, …) resolve.
+
+Verify locally before deploying:
+
+```bash
+npm run preview   # serves the production build for a smoke test
+```
+
+---
+
 ## ✅ What Has Been Created
 
 ### Folder Structure
