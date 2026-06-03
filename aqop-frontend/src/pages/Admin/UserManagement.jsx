@@ -16,7 +16,6 @@ import Navigation from '../../components/Navigation';
 import BottomNav from '../../components/BottomNav';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import {
-  UserVisually,
   Plus,
   Search,
   Filter,
