@@ -7,6 +7,15 @@
 const API_URL = import.meta.env.VITE_API_URL || 'https://operation.aqleeat.co/wp-json';
 
 /**
+ * Authentication endpoints that must NEVER receive an Authorization header.
+ * Login/refresh/logout/validate authenticate via the request body (credentials
+ * or refresh_token), and sending a stale/expired Bearer here can break them.
+ */
+const AUTH_ENDPOINT_PREFIX = '/aqop-jwt/v1/';
+
+const isAuthEndpoint = (endpoint = '') => endpoint.includes(AUTH_ENDPOINT_PREFIX);
+
+/**
  * Base API client with authentication support and token refresh interceptor
  */
 class ApiClient {
@@ -18,14 +27,17 @@ class ApiClient {
 
   /**
    * Get authentication headers
+   *
+   * @param {string} endpoint - Target endpoint. Auth endpoints (/aqop-jwt/v1/*)
+   *   never receive an Authorization header.
    */
-  getHeaders() {
-    const token = localStorage.getItem('access_token');
+  getHeaders(endpoint = '') {
     const headers = {
       'Content-Type': 'application/json',
     };
 
-    if (token) {
+    const token = localStorage.getItem('access_token');
+    if (token && !isAuthEndpoint(endpoint)) {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
@@ -98,7 +110,7 @@ class ApiClient {
     const config = {
       ...options,
       headers: {
-        ...this.getHeaders(),
+        ...this.getHeaders(endpoint),
         ...options.headers,
       },
     };

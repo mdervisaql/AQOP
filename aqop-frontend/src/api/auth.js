@@ -55,7 +55,12 @@ export const logout = async () => {
 };
 
 /**
- * Refresh access token
+ * Refresh access token (manual).
+ *
+ * Note: automatic refresh on 401 is handled by the interceptor inside
+ * ApiClient.request(). Both paths hit AUTH_ENDPOINTS.REFRESH and rely on the
+ * auth-endpoint exclusion in getHeaders() so NO Authorization header is sent;
+ * the refresh_token in the body is the sole credential.
  */
 export const refreshToken = async () => {
   const refreshToken = localStorage.getItem('refresh_token');
