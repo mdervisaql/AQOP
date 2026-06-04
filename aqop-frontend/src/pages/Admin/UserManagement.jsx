@@ -15,6 +15,7 @@ import { formatDateTime } from '../../utils/helpers';
 import Navigation from '../../components/Navigation';
 import BottomNav from '../../components/BottomNav';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import RolesGuidePanel from '../../components/RolesGuidePanel';
 import {
   Plus,
   Search,
@@ -23,7 +24,8 @@ import {
   Trash2,
   CheckCircle,
   X,
-  User
+  User,
+  ShieldCheck
 } from 'lucide-react';
 
 export default function UserManagement() {
@@ -61,6 +63,9 @@ export default function UserManagement() {
   // Delete confirmation
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Roles guide drawer
+  const [showRolesGuide, setShowRolesGuide] = useState(false);
 
   const aqopRoles = [
     { value: 'aq_agent', label: 'وكيل (AQ Agent)' },
@@ -301,13 +306,22 @@ export default function UserManagement() {
                   إدارة مستخدمي ومسؤولي منصة AQOP
                 </p>
               </div>
-              <button
-                onClick={openCreateModal}
-                className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition"
-              >
-                <Plus className="w-5 h-5 ml-2" />
-                إضافة مستخدم جديد
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setShowRolesGuide(true)}
+                  className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition"
+                >
+                  <ShieldCheck className="w-5 h-5 ml-2" />
+                  دليل الصلاحيات
+                </button>
+                <button
+                  onClick={openCreateModal}
+                  className="inline-flex items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 transition"
+                >
+                  <Plus className="w-5 h-5 ml-2" />
+                  إضافة مستخدم جديد
+                </button>
+              </div>
             </div>
           </div>
 
@@ -747,6 +761,9 @@ export default function UserManagement() {
 
       {/* Bottom Navigation for Mobile */}
       <BottomNav />
+
+      {/* Roles permission guide (informational drawer) */}
+      <RolesGuidePanel open={showRolesGuide} onClose={() => setShowRolesGuide(false)} />
     </div>
   );
 }
